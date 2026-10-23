@@ -115,28 +115,64 @@ test('as a process: exits 0 with empty stdout even on garbage input', () => {
 
 test('hooks.json maps every event to status.js with the right state', () => {
   const json = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'hooks', 'hooks.json'), 'utf8'));
+  const entry = (state, matcher = '', extra = {}) => [
+    {
+      matcher,
+      hooks: [
+        {
+          type: 'command',
+          command: `node "\${CLAUDE_PLUGIN_ROOT}/hooks/status.js" ${state}`,
+          timeout: 10,
+          ...extra,
+        },
+      ],
+    },
+  ];
   const expected = {
-    UserPromptSubmit: 'working',
-    PermissionRequest: 'needs-you',
-    Notification: 'needs-you',
-    Stop: 'done',
-    SessionEnd: 'end',
+    UserPromptSubmit: entry('working'),
+    PermissionRequest: entry('needs-you'),
+    Notification: entry('needs-you', 'permission_prompt|elicitation_dialog'),
+    PostToolUse: entry('resume', '', { async: true }),
+    Stop: entry('done'),
+    SessionEnd: entry('end'),
   };
   assert.deepEqual(Object.keys(json.hooks).sort(), Object.keys(expected).sort());
-  for (const [event, state] of Object.entries(expected)) {
-    assert.deepEqual(json.hooks[event], [
-      {
-        matcher: '',
-        hooks: [
-          {
-            type: 'command',
-            command: `node "\${CLAUDE_PLUGIN_ROOT}/hooks/status.js" ${state}`,
-            timeout: 10,
-          },
-        ],
-      },
-    ]);
+  for (const [event, value] of Object.entries(expected)) {
+    assert.deepEqual(json.hooks[event], value, event);
   }
+});
+
+test('resume sets a needs-you session back to working', () => {
+  const dir = tmp();
+  const env = { ARCADE_DATA_DIR: dir };
+  runHook('needs-you', { session_id: 's1', cwd: '/p/demo' }, env);
+  runHook('needs-you', { session_id: 's2', cwd: '/p/other' }, env);
+  runHook('resume', { session_id: 's1', cwd: '/p/demo' }, env);
+  const { sessions } = readStatus(dir);
+  assert.equal(sessions.s1.state, 'working');
+  assert.equal(sessions.s1.project, 'demo');
+  assert.equal(sessions.s2.state, 'needs-you');
+});
+
+test('resume is a no-op unless the session needs you, and never auto-opens', () => {
+  const dir = tmp();
+  const env = { ARCADE_DATA_DIR: dir, CLAUDE_PLUGIN_OPTION_MODE: 'auto' };
+  const file = path.join(dir, 'status.json');
+
+  // unknown session: nothing is created (no status.json at all)
+  assert.deepEqual(runHook('resume', { session_id: 's1' }, env), []);
+  assert.equal(fs.existsSync(file), false);
+
+  for (const state of ['done', 'working']) {
+    runHook(state, { session_id: 's1', cwd: '/p/demo' }, { ARCADE_DATA_DIR: dir });
+    const before = fs.readFileSync(file, 'utf8');
+    assert.deepEqual(runHook('resume', { session_id: 's1' }, env), []);
+    assert.equal(fs.readFileSync(file, 'utf8'), before, state);
+  }
+
+  runHook('needs-you', { session_id: 's1' }, { ARCADE_DATA_DIR: dir });
+  assert.deepEqual(runHook('resume', { session_id: 's1' }, env), []);
+  assert.equal(readStatus(dir).sessions.s1.state, 'working');
 });
 
 test('hook persists valid plugin options for the server', () => {

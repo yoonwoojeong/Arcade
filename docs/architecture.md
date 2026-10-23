@@ -19,8 +19,10 @@ browser tab (web/shell.js) ◀──SSE /events (15 s heartbeat)── server/se
 ## Flow
 
 1. **Hooks.** `hooks/hooks.json` runs `node hooks/status.js <state>` on `UserPromptSubmit` (`working`),
-   `PermissionRequest` and `Notification` (`needs-you`), `Stop` (`done`) and `SessionEnd` (`end`). The
-   hook reads `session_id` and `cwd` from stdin, updates `status.json` atomically (temp file and
+   `PermissionRequest` and `Notification` for permission prompts and elicitation dialogs
+   (`needs-you`), `Stop` (`done`) and `SessionEnd` (`end`). An async `PostToolUse` hook runs `resume`,
+   which turns a `needs-you` session back to `working` once a tool runs (the prompt was answered) and
+   changes nothing otherwise. The hook reads `session_id` and `cwd` from stdin, updates `status.json` atomically (temp file and
    rename), always exits 0, and prints nothing. Errors go to `arcade.log`. It stores the project folder
    name only, never prompts or tool inputs. Sessions idle for 24 hours are pruned.
 2. **Server.** A Node built-ins-only HTTP server binds `127.0.0.1` (port `4417`, then the next 9) and

@@ -3,9 +3,9 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { dataDir, pluginRoot, isMainModule } from '../server/paths.js';
 import { resolveSettings, writePluginOptions } from '../server/settings.js';
-import { applyEvent, updateStatus } from '../server/status-store.js';
+import { applyEvent, readStatus, updateStatus } from '../server/status-store.js';
 
-const STATES = ['working', 'needs-you', 'done', 'end'];
+const STATES = ['working', 'needs-you', 'done', 'end', 'resume'];
 
 function logError(dir, now, message) {
   try {
@@ -35,6 +35,15 @@ export function run({ state, stdinText, env, now, spawnAutoOpen }) {
     const sessionId = input.session_id || 'unknown';
     const cwd = typeof input.cwd === 'string' ? input.cwd : undefined;
     writePluginOptions(dir, env);
+    if (state === 'resume') {
+      // After a tool runs, a pending prompt was answered: needs-you -> working, nothing else.
+      const needsYou = (status) => status.sessions[sessionId]?.state === 'needs-you';
+      if (!needsYou(readStatus(dir))) return;
+      updateStatus(dir, (status) =>
+        needsYou(status) ? applyEvent(status, { state: 'working', sessionId, cwd, now }) : status,
+      );
+      return;
+    }
     updateStatus(dir, (status) => applyEvent(status, { state, sessionId, cwd, now }));
     if (state === 'working') {
       const { mode, autoOpenDelay } = resolveSettings({ dataDir: dir, env });

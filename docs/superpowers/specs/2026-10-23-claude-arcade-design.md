@@ -144,7 +144,8 @@ the forgot-to-open case.
 |---|---|---|
 | `UserPromptSubmit` | `working` | Session → `working`; in `auto` mode, may spawn the auto-open timer |
 | `PermissionRequest` | `needs-you` | Session → `needs-you` |
-| `Notification` | `needs-you` | Session → `needs-you` |
+| `Notification` (matcher `permission_prompt\|elicitation_dialog`) | `needs-you` | Session → `needs-you` |
+| `PostToolUse` (`async: true`) | `resume` | Session → `working` only if it is currently `needs-you` (the prompt was answered); otherwise no change. Never creates a session or spawns the auto-open timer |
 | `Stop` | `done` | Session → `done` |
 | `SessionEnd` | `end` | Session removed |
 
