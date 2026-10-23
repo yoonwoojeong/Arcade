@@ -241,7 +241,9 @@ test('index: pause clears the loop timer, resume restarts it, death announces an
     assert.equal(env.activeTimers(), 1);
     // steer up, wait for the wall: 10 rows from the centre
     handlers.get('up')();
-    await new Promise((r) => setTimeout(r, 1500));
+    const deadline = Date.now() + 5000;
+    while (scores.length === 0 && Date.now() < deadline)
+      await new Promise((r) => setTimeout(r, 20));
     assert.deepEqual(scores, [0]);
     assert.deepEqual(announced, [
       ['Game over. Score 0. Press Enter to play again.', { assertive: true }],

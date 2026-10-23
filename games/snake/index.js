@@ -121,9 +121,9 @@ export default function createGame(ctx) {
       g.fillStyle = colors.fg;
       g.textAlign = 'center';
       g.font = '700 20px system-ui, sans-serif';
-      g.fillText(state.won ? 'You win!' : 'Game over', W / 2, HUD + (cell * ROWS) / 2 - 12);
+      g.fillText(state.won ? 'You win!' : 'Game over', W / 2, HUD + (cell * ROWS) / 2 - 12, W - 8);
       g.font = '600 14px system-ui, sans-serif';
-      g.fillText('Press Enter or tap to play again', W / 2, HUD + (cell * ROWS) / 2 + 14);
+      g.fillText('Press Enter or tap to play again', W / 2, HUD + (cell * ROWS) / 2 + 14, W - 8);
     }
   }
 
