@@ -1,7 +1,7 @@
 # Claude Arcade — Design Spec
 
 - **Date:** 2026-10-23
-- **Status:** Draft, awaiting review
+- **Status:** Approved
 - **License:** Apache-2.0
 
 ## 1. Purpose
