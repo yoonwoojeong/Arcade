@@ -1,5 +1,6 @@
 {
   "name": "claude-arcade",
+  "description": "Claude Arcade: mini-games in your browser while Claude works.",
   "owner": { "name": "yoonwoojeong" },
   "plugins": [
     {
