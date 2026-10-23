@@ -1,0 +1,55 @@
+name: Bug report
+description: Something in Claude Arcade is not working.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping! The more detail you give, the faster we can fix it.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead? Steps to reproduce help a lot.
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [macOS, Windows, Linux, WSL, Other]
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      description: Output of `node --version`.
+    validations:
+      required: true
+  - type: input
+    id: claude-code
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Arcade mode
+      options: [alert (default), auto, quiet]
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: Firefox 130
+  - type: textarea
+    id: log
+    attributes:
+      label: arcade.log excerpt
+      description: >-
+        The log is in the plugin data directory (usually `~/.claude/plugins/data/<plugin-id>/arcade.log`).
+        Paste the relevant lines. Check them first: they may contain your project folder name.
+      render: text

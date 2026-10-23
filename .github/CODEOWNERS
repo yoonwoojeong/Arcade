@@ -1,0 +1,8 @@
+# Maintainers own everything by default.
+* @yoonwoojeong
+
+# Core areas: changes here need a maintainer review.
+/server/ /hooks/ /web/ /schemas/ /.github/ @yoonwoojeong
+
+# Game authors: add a line for your game's folder so you are asked to review changes to it, e.g.
+# /games/my-game/ @your-github-handle

@@ -1,0 +1,45 @@
+name: Game proposal
+description: Pitch a new game for the arcade. Please read docs/game-authoring.md first.
+labels: [new-game]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Games must work offline, with no tracking, and no violent or adult content. See
+        [docs/game-authoring.md](https://github.com/yoonwoojeong/Arcade/blob/main/docs/game-authoring.md).
+        You are welcome to build it yourself, and we are happy to help.
+  - type: textarea
+    id: concept
+    attributes:
+      label: Concept
+      description: What is the game, and why is it fun in a short break?
+    validations:
+      required: true
+  - type: textarea
+    id: controls
+    attributes:
+      label: Controls
+      description: Keyboard and touch controls, using the actions up, down, left, right, primary, secondary and pause.
+    validations:
+      required: true
+  - type: textarea
+    id: screen-reader
+    attributes:
+      label: Screen-reader plan
+      description: Will it be full, partial or none? How will state changes be announced? Be honest, "none" is acceptable.
+    validations:
+      required: true
+  - type: dropdown
+    id: session-length
+    attributes:
+      label: Session length
+      options: [short (under 2 minutes), medium, untimed]
+    validations:
+      required: true
+  - type: dropdown
+    id: builder
+    attributes:
+      label: Who will build it?
+      options: [I will, I would like help, I am just suggesting]
+    validations:
+      required: true
