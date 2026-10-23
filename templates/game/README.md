@@ -16,7 +16,7 @@ design spec, section 5.1.
 ## Rules the contract test enforces
 
 - `game.json` is valid and `index.js` default-exports `createGame(ctx)`.
-- After `start`, `pause`, `resume`, `destroy`: no timers, animation frames or
+- After `start`, `pause`, `resume`, `destroy` (cancel your animation frame and timers in `destroy`): no timers, animation frames or
   listeners left, and every `ctx.input.on` has a matching `ctx.input.off`.
 - No network: no `http(s)://`, `fetch`, `XMLHttpRequest`, `WebSocket` or `import()`.
 - The folder is at most 200 KB and contains this `README.md`.

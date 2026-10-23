@@ -1,20 +1,24 @@
-// Minimal fake browser environment for contract tests: a recursive stub DOM plus
+// Fake browser environment for contract tests: installs a stub DOM (see fake-dom.js) and
 // counting wrappers around timers, so leaks after destroy() can be detected in Node.
+import { createFakeDom } from './fake-dom.js';
 
-const TIMER_FNS = [
+const GLOBALS = [
   'setTimeout',
   'setInterval',
   'clearTimeout',
   'clearInterval',
   'requestAnimationFrame',
   'cancelAnimationFrame',
+  'document',
+  'window',
+  'Image',
+  'Audio',
 ];
 
 export function installFakeEnv() {
   const originals = {};
-  for (const name of [...TIMER_FNS, 'document']) {
+  for (const name of GLOBALS)
     originals[name] = { had: name in globalThis, value: globalThis[name] };
-  }
   const realSetTimeout = globalThis.setTimeout;
   const realSetInterval = globalThis.setInterval;
   const realClearTimeout = globalThis.clearTimeout;
@@ -52,110 +56,34 @@ export function installFakeEnv() {
   globalThis.requestAnimationFrame = (fn) => globalThis.setTimeout(() => fn(Date.now()), 16);
   globalThis.cancelAnimationFrame = clear;
 
-  // ---- listeners: a live set of (target, type, fn) registrations ----
+  // ---- listeners: live set of (target, type, fn, capture) registrations ----
   const listeners = new Set();
-  const keyOf = new Map(); // fn -> per-function numeric id, so keys are strings
-  const fnId = (fn) => {
-    if (!keyOf.has(fn)) keyOf.set(fn, keyOf.size + 1);
-    return keyOf.get(fn);
+  const ids = new Map();
+  const idOf = (o) => {
+    if (!ids.has(o)) ids.set(o, ids.size + 1);
+    return ids.get(o);
   };
-  let targetSeq = 0;
-
-  function eventApi(target) {
-    const tid = ++targetSeq;
-    target.addEventListener = (type, fn) => listeners.add(`${tid}:${type}:${fnId(fn)}`);
-    target.removeEventListener = (type, fn) => listeners.delete(`${tid}:${type}:${fnId(fn)}`);
-  }
-
-  // ---- stub DOM ----
-  function canvasContext() {
-    return new Proxy(
-      {},
-      {
-        get: (_t, prop) => (prop === 'canvas' ? undefined : () => undefined),
-        set: () => true,
-      },
-    );
-  }
-
-  function createElement(tag = 'div') {
-    const el = {
-      tagName: String(tag).toUpperCase(),
-      children: [],
-      style: {},
-      dataset: {},
-      attributes: {},
-      textContent: '',
-      className: '',
-      parentNode: null,
-      classList: {
-        _set: new Set(),
-        add(...c) {
-          c.forEach((x) => this._set.add(x));
-        },
-        remove(...c) {
-          c.forEach((x) => this._set.delete(x));
-        },
-        toggle(c, force) {
-          const on = force ?? !this._set.has(c);
-          if (on) this._set.add(c);
-          else this._set.delete(c);
-          return on;
-        },
-        contains(c) {
-          return this._set.has(c);
-        },
-      },
-      append(...nodes) {
-        for (const n of nodes) {
-          if (n && typeof n === 'object') n.parentNode = el;
-          el.children.push(n);
-        }
-      },
-      appendChild(n) {
-        el.append(n);
-        return n;
-      },
-      remove() {
-        const p = el.parentNode;
-        if (p) p.children = p.children.filter((c) => c !== el);
-        el.parentNode = null;
-      },
-      replaceChildren(...nodes) {
-        el.children = [];
-        el.append(...nodes);
-      },
-      setAttribute(k, v) {
-        el.attributes[k] = String(v);
-      },
-      getAttribute: (k) => el.attributes[k] ?? null,
-      removeAttribute(k) {
-        delete el.attributes[k];
-      },
-      querySelector: () => createElement('div'),
-      querySelectorAll: () => [],
-      getContext: (type) => (type === '2d' ? canvasContext() : null),
-      focus() {},
-      blur() {},
-      getBoundingClientRect: () => ({ x: 0, y: 0, top: 0, left: 0, width: 0, height: 0 }),
-    };
-    eventApi(el);
-    return el;
-  }
-
-  const document = {
-    createElement,
-    createTextNode: (text) => ({ nodeType: 3, textContent: String(text) }),
-    body: createElement('body'),
-    querySelector: () => createElement('div'),
-    querySelectorAll: () => [],
-    getElementById: () => createElement('div'),
+  const capture = (o) => (typeof o === 'boolean' ? o : Boolean(o?.capture));
+  const key = (target, type, fn, opts) => `${idOf(target)}:${type}:${idOf(fn)}:${capture(opts)}`;
+  const track = {
+    add(target, type, fn, opts) {
+      // { once: true } listeners remove themselves when fired; they are not leaks
+      if (typeof opts === 'object' && opts?.once) return;
+      listeners.add(key(target, type, fn, opts));
+    },
+    remove(target, type, fn, opts) {
+      listeners.delete(key(target, type, fn, opts));
+    },
   };
-  eventApi(document);
-  globalThis.document = document;
+
+  const dom = createFakeDom(track);
+  globalThis.document = dom.document;
+  globalThis.window = dom.window;
+  globalThis.Image = dom.Image;
+  globalThis.Audio = dom.Audio;
 
   return {
-    document,
+    document: dom.document,
     activeTimers: () => timers.size,
     activeListeners: () => listeners.size,
     restore() {

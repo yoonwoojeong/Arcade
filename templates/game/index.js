@@ -47,7 +47,7 @@ export default function createGame(ctx) {
       paused = false;
     },
     destroy() {
-      // Release EVERYTHING: timers, animation frames, listeners, DOM.
+      // Release EVERYTHING: cancel your animation frame and timers, remove listeners and DOM.
       paused = true;
       ctx.input.off('primary', onPrimary);
       button.removeEventListener('click', onClick);
