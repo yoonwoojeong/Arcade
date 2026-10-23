@@ -1,7 +1,7 @@
 {
   "name": "arcade",
   "displayName": "Claude Arcade",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Play mini-games in your browser while Claude works, and get nudged when Claude needs you.",
   "author": { "name": "yoonwoojeong" },
   "homepage": "https://github.com/yoonwoojeong/Arcade",
