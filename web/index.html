@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Claude Arcade</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/web/styles.css" />
+    <script type="module" src="/web/shell.js"></script>
+  </head>
+  <body data-game="" data-game-state="empty">
+    <header class="topbar">
+      <h1 class="brand">Claude Arcade</h1>
+      <p id="status-badge" class="badge" role="status" aria-live="polite" data-state="connecting">
+        Connecting…
+      </p>
+      <button id="settings-button" type="button" aria-haspopup="dialog">Settings</button>
+    </header>
+
+    <div id="banner" class="banner" role="alert" data-state="" hidden>
+      <p id="banner-text" class="banner-text"></p>
+      <div class="banner-actions">
+        <button id="banner-resume" type="button">Resume game</button>
+        <button id="banner-dismiss" type="button">Dismiss</button>
+      </div>
+    </div>
+
+    <main id="main">
+      <p id="shell-message" class="shell-message" hidden></p>
+
+      <section id="menu" aria-labelledby="menu-heading">
+        <h2 id="menu-heading">Games</h2>
+        <p id="menu-loading">Loading games…</p>
+        <ul id="game-list" class="game-list"></ul>
+      </section>
+
+      <section id="stage" aria-labelledby="stage-heading" hidden>
+        <div class="stage-bar">
+          <h2 id="stage-heading"></h2>
+          <button id="back-button" type="button" aria-keyshortcuts="Escape">Back to menu</button>
+        </div>
+        <div id="paused-panel" class="paused-panel" hidden>
+          <p>Paused</p>
+          <button id="paused-resume" type="button">Resume game</button>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="settings" aria-labelledby="settings-heading">
+      <form id="settings-form">
+        <h2 id="settings-heading">Settings</h2>
+
+        <fieldset>
+          <legend>Mode</legend>
+          <label><input type="radio" name="mode" value="alert" /> Alert</label>
+          <label><input type="radio" name="mode" value="auto" /> Auto</label>
+          <label><input type="radio" name="mode" value="quiet" /> Quiet</label>
+          <p id="mode-help" class="help">
+            Alert pauses your game and shows a banner when Claude finishes or needs you. Auto also
+            opens the arcade while Claude works. Quiet only updates the status badge.
+          </p>
+        </fieldset>
+
+        <div class="field">
+          <label for="set-delay">Auto-open delay (seconds)</label>
+          <input
+            id="set-delay"
+            name="autoOpenDelay"
+            type="number"
+            inputmode="numeric"
+            min="5"
+            max="600"
+            step="1"
+            aria-describedby="settings-error"
+          />
+        </div>
+        <p id="settings-error" class="error" role="alert"></p>
+
+        <fieldset>
+          <legend>Alerts</legend>
+          <label><input id="set-sound" type="checkbox" /> Sound</label>
+          <label><input id="set-notifications" type="checkbox" /> Browser notifications</label>
+          <p id="notifications-help" class="help" hidden></p>
+        </fieldset>
+
+        <fieldset>
+          <legend>Appearance</legend>
+          <div class="field">
+            <label for="set-theme">Theme</label>
+            <select id="set-theme">
+              <option value="system">Match system</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+          <label><input id="set-motion" type="checkbox" /> Reduced motion</label>
+          <label><input id="set-contrast" type="checkbox" /> High contrast</label>
+          <label><input id="set-colorblind" type="checkbox" /> Colorblind-safe palette</label>
+          <label><input id="set-project" type="checkbox" /> Show project name</label>
+        </fieldset>
+
+        <div class="dialog-actions">
+          <button id="settings-close" type="button">Close</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="sr-announcer" class="visually-hidden" aria-live="polite"></div>
+    <div id="sr-announcer-assertive" class="visually-hidden" aria-live="assertive"></div>
+  </body>
+</html>
