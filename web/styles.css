@@ -361,6 +361,11 @@ main {
   margin: 0;
 }
 
+.high-score {
+  margin: 0 auto 0 0;
+  font-weight: 600;
+}
+
 .paused-panel {
   display: flex;
   align-items: center;

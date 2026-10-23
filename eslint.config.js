@@ -10,7 +10,9 @@ export default [
   },
   {
     // Playwright fixtures must destructure their first argument, even when it is unused.
+    // Specs also hold callbacks that run in the page (page.evaluate / addInitScript).
     files: ['test/e2e/**/*.js'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
     rules: { 'no-empty-pattern': 'off' },
   },
   {

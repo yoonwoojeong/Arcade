@@ -32,6 +32,45 @@ test('badge reflects status and goes offline when the server stops', async ({
   await expect(badge(page)).toHaveAttribute('data-state', 'offline');
 });
 
+test('badge text is only rewritten when it changes', async ({ page, baseURL, setStatus }) => {
+  // count status events delivered to the page
+  await page.addInitScript(() => {
+    window.__statusEvents = 0;
+    const add = EventSource.prototype.addEventListener;
+    EventSource.prototype.addEventListener = function (type, fn, opts) {
+      if (type === 'status') {
+        return add.call(
+          this,
+          type,
+          (e) => {
+            window.__statusEvents++;
+            fn(e);
+          },
+          opts,
+        );
+      }
+      return add.call(this, type, fn, opts);
+    };
+  });
+  await page.goto(baseURL);
+  await setStatus({ s1: { state: 'working', project: 'demo' } });
+  await expect(badge(page)).toHaveText('Claude is working…');
+  const seen = await page.evaluate(() => {
+    window.__badgeMutations = 0;
+    new MutationObserver((records) => {
+      window.__badgeMutations += records.length;
+    }).observe(document.getElementById('status-badge'), {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    return window.__statusEvents;
+  });
+  await setStatus({ s1: { state: 'working', project: 'demo' }, s2: { state: 'working' } });
+  await expect.poll(() => page.evaluate(() => window.__statusEvents)).toBeGreaterThan(seen);
+  expect(await page.evaluate(() => window.__badgeMutations)).toBe(0);
+});
+
 test('menu shows the empty state when no games are installed', async ({ page, baseURL }) => {
   await page.goto(baseURL);
   await expect(page.locator('#menu')).toContainText('No games installed.');
@@ -59,7 +98,9 @@ test('needs-you shows the banner in alert mode and not in quiet mode', async ({
   await setStatus({ s1: { state: 'needs-you', project: 'demo' } });
   await expect(badge(page)).toHaveText('demo needs you');
   await expect(banner(page)).toBeVisible();
-  await expect(banner(page)).toHaveAttribute('role', 'alert');
+  await expect(banner(page)).toHaveAttribute('role', 'region');
+  await expect(banner(page)).toHaveAttribute('aria-label', 'Claude status');
+  await expect(page.getByRole('region', { name: 'Claude status' })).toBeVisible();
   await expect(banner(page)).toContainText('Claude needs you in demo');
   await expect(page.locator('#sr-announcer-assertive')).toHaveText('Claude needs you in demo');
   await expect(banner(page).getByRole('button', { name: 'Dismiss' })).toBeVisible();

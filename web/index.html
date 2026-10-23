@@ -18,7 +18,7 @@
       <button id="settings-button" type="button" aria-haspopup="dialog">Settings</button>
     </header>
 
-    <div id="banner" class="banner" role="alert" data-state="" hidden>
+    <div id="banner" class="banner" role="region" aria-label="Claude status" data-state="" hidden>
       <p id="banner-text" class="banner-text"></p>
       <div class="banner-actions">
         <button id="banner-resume" type="button">Resume game</button>
@@ -38,6 +38,7 @@
       <section id="stage" aria-labelledby="stage-heading" hidden>
         <div class="stage-bar">
           <h2 id="stage-heading"></h2>
+          <p id="high-score" class="high-score" hidden></p>
           <button id="back-button" type="button" aria-keyshortcuts="Escape">Back to menu</button>
         </div>
         <div id="paused-panel" class="paused-panel" hidden>

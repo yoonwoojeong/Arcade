@@ -8,7 +8,10 @@ import { createGameHost, resolveGameId } from './game-host.js';
 import { createBanner, notify } from './banner.js';
 import { createSettingsPanel, applyPrefs } from './settings-panel.js';
 import { playChime, playGameSound } from './sound.js';
-import { renderMenu, cardFor } from './menu.js';
+import { renderMenu, cardFor, setCardScore } from './menu.js';
+import { createScores } from './scores.js';
+import { createAnnouncer } from './announcer.js';
+import { getJson, postSettings } from './api.js';
 
 const CRASH_MESSAGE = 'This game crashed — back to menu';
 const RECONNECT_MS = 3000;
@@ -21,6 +24,7 @@ const els = {
   list: $('game-list'),
   stage: $('stage'),
   stageHeading: $('stage-heading'),
+  highScore: $('high-score'),
   pausedPanel: $('paused-panel'),
   message: $('shell-message'),
   polite: $('sr-announcer'),
@@ -37,6 +41,7 @@ function safeStorage() {
 
 const storage = safeStorage();
 const prefs = createPrefs({ storage, matchMedia: window.matchMedia.bind(window) });
+const scores = createScores(storage);
 let settings = { mode: 'alert', autoOpenDelay: 20 };
 let games = [];
 let lastStatus = null;
@@ -44,22 +49,9 @@ let shownKey = null;
 let dismissedKey = null;
 let current = null; // { id, root, input } of the mounted game
 let mountToken = 0;
+let pausedBySettings = false;
 
-// ---- announcements ----
-
-const announceTimers = new Map();
-function announce(text, { assertive = false } = {}) {
-  const el = assertive ? els.assertive : els.polite;
-  clearTimeout(announceTimers.get(el));
-  el.textContent = '';
-  // clear first so repeating the same text is announced again
-  announceTimers.set(
-    el,
-    setTimeout(() => {
-      el.textContent = text;
-    }, 50),
-  );
-}
+const announce = createAnnouncer({ polite: els.polite, assertive: els.assertive });
 
 // ---- game host ----
 
@@ -82,6 +74,19 @@ function releaseGame() {
   current = null;
 }
 
+function showHighScore(best) {
+  els.highScore.hidden = best === undefined;
+  els.highScore.textContent = best === undefined ? '' : `High score: ${best}`;
+}
+
+function reportScore(id, n) {
+  const { best, isNew } = scores.report(id, n);
+  if (!isNew) return;
+  if (current?.id === id) showHighScore(best);
+  setCardScore(cardFor(els.list, id), best);
+  announce(`New high score: ${best}`);
+}
+
 function clearHash() {
   if (location.hash) history.replaceState(null, '', location.pathname + location.search);
 }
@@ -94,6 +99,7 @@ function showMenu() {
 function leaveGame() {
   const id = current?.id ?? null;
   mountToken++;
+  pausedBySettings = false;
   host.pause();
   releaseGame();
   clearHash();
@@ -126,6 +132,7 @@ async function openGame(id) {
   const token = ++mountToken;
   els.message.hidden = true;
   els.stageHeading.textContent = game.title;
+  showHighScore(scores.get(id));
   els.menu.hidden = true;
   els.stage.hidden = false;
   sync();
@@ -159,7 +166,7 @@ async function openGame(id) {
     prefs,
     announce,
     playSound: (name) => playGameSound(id, name),
-    onScore: () => {},
+    onScore: (n) => reportScore(id, n),
     storage,
   });
   host.mount(id, mod.default, ctx);
@@ -214,7 +221,8 @@ function render() {
   const p = prefs.get();
   const summary = summarize(lastStatus, { showProject: p.showProject, now: new Date() });
   els.badge.dataset.state = summary.state;
-  els.badge.textContent = summary.badge;
+  // avoid needless live-region updates when nothing changed
+  if (els.badge.textContent !== summary.badge) els.badge.textContent = summary.badge;
 
   if (summary.state === 'working' || summary.state === 'idle') {
     hideBanner();
@@ -227,6 +235,7 @@ function render() {
     return;
   }
   shownKey = summary.key;
+  pausedBySettings = false; // the banner now owns the pause
   const wasRunning = host.state === 'running';
   if (reaction.pause) host.pause();
   banner.show(summary);
@@ -255,28 +264,10 @@ function connect() {
   };
 }
 
-// ---- settings ----
-
 async function saveSettings(patch) {
-  try {
-    const res = await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
-    const body = await res.json();
-    if (!res.ok) return { ok: false, errors: body.errors ?? ['Could not save settings.'] };
-    settings = body;
-    return { ok: true };
-  } catch {
-    return { ok: false, errors: ['Could not save settings. Is the arcade server running?'] };
-  }
-}
-
-async function getJson(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-  return res.json();
+  const result = await postSettings(patch);
+  if (result.ok) settings = result.settings;
+  return result;
 }
 
 // ---- startup ----
@@ -296,6 +287,20 @@ createSettingsPanel({
   prefs,
   getSettings: () => settings,
   saveSettings,
+  // a game paused for the dialog resumes on close, unless an alert paused it meanwhile
+  onOpen: () => {
+    if (host.state !== 'running') return;
+    host.pause();
+    pausedBySettings = host.state === 'paused';
+    sync();
+  },
+  onClose: () => {
+    if (!pausedBySettings) return false;
+    pausedBySettings = false;
+    if (banner.visible) return false;
+    resumeGame();
+    return host.state === 'running';
+  },
 });
 
 $('back-button').addEventListener('click', () => leaveGame());
@@ -320,9 +325,14 @@ async function start() {
   if (gamesResult.status === 'fulfilled' && Array.isArray(gamesResult.value)) {
     games = gamesResult.value;
     els.menuLoading.remove();
-    renderMenu(els.list, games, (id) => {
-      location.hash = id;
-    });
+    renderMenu(
+      els.list,
+      games,
+      (id) => {
+        location.hash = id;
+      },
+      (id) => scores.get(id),
+    );
   } else {
     els.menuLoading.textContent = 'Could not load games. Reload the page to try again.';
   }

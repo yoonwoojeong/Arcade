@@ -13,7 +13,15 @@ export function applyPrefs(rootEl, p) {
   rootEl.classList.toggle('colorblind', Boolean(p.colorblindPalette));
 }
 
-export function createSettingsPanel({ dialog, opener, prefs, getSettings, saveSettings }) {
+export function createSettingsPanel({
+  dialog,
+  opener,
+  prefs,
+  getSettings,
+  saveSettings,
+  onOpen = () => {},
+  onClose = () => false,
+}) {
   const $ = (sel) => dialog.querySelector(sel);
   const form = $('#settings-form');
   const modeRadios = [...dialog.querySelectorAll('input[name="mode"]')];
@@ -123,10 +131,14 @@ export function createSettingsPanel({ dialog, opener, prefs, getSettings, saveSe
   form.addEventListener('submit', (e) => e.preventDefault());
   $('#settings-close').addEventListener('click', () => dialog.close());
 
-  dialog.addEventListener('close', () => opener.focus());
+  // onClose returns true when it moved focus itself (e.g. back into a resumed game).
+  dialog.addEventListener('close', () => {
+    if (!onClose()) opener.focus();
+  });
 
   opener.addEventListener('click', () => {
     fill();
+    onOpen();
     dialog.showModal();
     (modeRadios.find((r) => r.checked) ?? modeRadios[0]).focus();
   });

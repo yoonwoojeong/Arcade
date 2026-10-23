@@ -7,7 +7,7 @@ function span(className, text) {
   return el;
 }
 
-export function renderMenu(list, games, onSelect) {
+export function renderMenu(list, games, onSelect, bestFor = () => undefined) {
   list.replaceChildren();
   if (games.length === 0) {
     const empty = document.createElement('p');
@@ -31,11 +31,22 @@ export function renderMenu(list, games, onSelect) {
       span('game-meta', `Screen reader: ${g.accessibility.screenReader}`),
     );
     card.append(span('game-title', g.title), details);
+    setCardScore(card, bestFor(g.id));
     card.addEventListener('click', () => onSelect(g.id));
     const li = document.createElement('li');
     li.append(card);
     list.append(li);
   }
+}
+
+export function setCardScore(card, best) {
+  if (!card || best === undefined) return;
+  let el = card.querySelector('.game-score');
+  if (!el) {
+    el = span('game-meta game-score', '');
+    card.querySelector('.game-details').append(el);
+  }
+  el.textContent = `High score: ${best}`;
 }
 
 export function cardFor(list, id) {
