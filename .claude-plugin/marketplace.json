@@ -1,0 +1,11 @@
+{
+  "name": "claude-arcade",
+  "owner": { "name": "yoonwoojeong" },
+  "plugins": [
+    {
+      "name": "arcade",
+      "source": "./",
+      "description": "Play mini-games in your browser while Claude works, and get nudged when Claude needs you."
+    }
+  ]
+}

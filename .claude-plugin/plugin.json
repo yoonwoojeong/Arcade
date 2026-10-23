@@ -1,0 +1,36 @@
+{
+  "name": "arcade",
+  "displayName": "Claude Arcade",
+  "version": "0.1.0",
+  "description": "Play mini-games in your browser while Claude works, and get nudged when Claude needs you.",
+  "author": { "name": "yoonwoojeong" },
+  "homepage": "https://github.com/yoonwoojeong/Arcade",
+  "repository": "https://github.com/yoonwoojeong/Arcade",
+  "license": "Apache-2.0",
+  "keywords": ["arcade", "games", "notifications", "status"],
+  "userConfig": {
+    "mode": {
+      "type": "string",
+      "title": "Arcade mode",
+      "description": "alert: pause + banner when Claude needs you; auto: also open the arcade automatically; quiet: status badge only",
+      "options": ["alert", "auto", "quiet"],
+      "default": "alert"
+    },
+    "port": {
+      "type": "number",
+      "title": "Preferred port",
+      "description": "Preferred local port for the arcade server (falls back to the next free ports)",
+      "min": 1024,
+      "max": 65535,
+      "default": 4417
+    },
+    "autoOpenDelay": {
+      "type": "number",
+      "title": "Auto-open delay (seconds)",
+      "description": "Seconds to wait before opening the arcade automatically; used only in auto mode",
+      "min": 5,
+      "max": 600,
+      "default": 20
+    }
+  }
+}
