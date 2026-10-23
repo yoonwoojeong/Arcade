@@ -30,6 +30,8 @@ export function browserCommands(url, { platform, isWsl, hasDisplay }) {
   return [];
 }
 
+const isCmd = (cmd) => cmd === 'cmd' || cmd === 'cmd.exe';
+
 function tryCommand(spawnFn, [cmd, args]) {
   return new Promise((resolve) => {
     let child;
@@ -40,7 +42,10 @@ function tryCommand(spawnFn, [cmd, args]) {
       resolve(ok);
     };
     try {
-      child = spawnFn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true });
+      const options = { detached: true, stdio: 'ignore', windowsHide: true };
+      // cmd parses its own command line: keep the literal "" title argument intact
+      if (isCmd(cmd)) options.windowsVerbatimArguments = true;
+      child = spawnFn(cmd, args, options);
     } catch {
       resolve(false);
       return;
@@ -59,6 +64,8 @@ function tryCommand(spawnFn, [cmd, args]) {
 }
 
 export async function openBrowser(url, env = detectEnv(), spawnFn = spawn) {
+  // cmd metacharacters would be unsafe unquoted; our URLs never contain them
+  if (/[&^|<>"%\s]/.test(url)) return false;
   for (const candidate of browserCommands(url, env)) {
     if (await tryCommand(spawnFn, candidate)) return true;
   }

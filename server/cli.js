@@ -1,8 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { pluginRoot, parseGlobalFlags, dataDir as resolveDataDir } from './paths.js';
+import { pluginRoot, parseGlobalFlags, dataDir as resolveDataDir, isMainModule } from './paths.js';
 import { resolveSettings } from './settings.js';
 import { findRunning, removeLock, isAlive } from './lifecycle.js';
 import { PortRangeBusyError } from './server.js';
@@ -63,6 +62,9 @@ async function shutdownServer({ lock }, dir, deps) {
   removeLock(dir, { pid: lock.pid });
 }
 
+const startFailure = (dir) =>
+  `Claude Arcade server did not start within 3s — see ${path.join(dir, 'arcade.log')}`;
+
 export async function ensureServer({ dir, env, deps = {} }) {
   deps = { ...realDeps(), ...deps };
   const existing = await deps.findRunning(dir);
@@ -71,7 +73,11 @@ export async function ensureServer({ dir, env, deps = {} }) {
       return existing.lock;
     }
     await shutdownServer(existing, dir, deps);
-    while (await deps.findRunning(dir)) await sleep(POLL_MS);
+    const stopDeadline = Date.now() + START_TIMEOUT_MS;
+    while (await deps.findRunning(dir)) {
+      if (Date.now() > stopDeadline) throw new Error(startFailure(dir));
+      await sleep(POLL_MS);
+    }
   }
   const child = deps.spawnServer(dir, env);
   let exitCode = null;
@@ -86,11 +92,10 @@ export async function ensureServer({ dir, env, deps = {} }) {
       const { port } = resolveSettings({ dataDir: dir, env });
       throw new PortRangeBusyError(port, port + 9);
     }
+    if (exitCode !== null) throw new Error(startFailure(dir));
     await sleep(POLL_MS);
   }
-  throw new Error(
-    `Claude Arcade server did not start within 3s — see ${path.join(dir, 'arcade.log')}`,
-  );
+  throw new Error(startFailure(dir));
 }
 
 export async function main(
@@ -187,6 +192,6 @@ export async function main(
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   process.exit(await main(process.argv.slice(2)));
 }

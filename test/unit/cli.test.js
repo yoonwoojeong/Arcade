@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -19,7 +23,7 @@ function harness(extraDeps = {}) {
   const out = [];
   const err = [];
   const opened = [];
-  const io = { env: { PATH: process.env.PATH }, out: (s) => out.push(s), err: (s) => err.push(s) };
+  const io = { env: { ...process.env }, out: (s) => out.push(s), err: (s) => err.push(s) };
   const deps = {
     openBrowser: async (url) => {
       opened.push(url);
@@ -161,4 +165,40 @@ test('--port flag reaches the spawned server', async () => {
     await h.run('start', '--port', String(port));
     assert.equal(readLock(h.dir).port, port);
   });
+});
+
+test('cli.js runs when invoked through a symlinked path', (t) => {
+  const link = path.join(tmp(), 'repo-link');
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+  try {
+    fs.symlinkSync(root, link, 'dir');
+  } catch (err) {
+    if (err.code === 'EPERM') return t.skip('symlinks need elevated rights on this Windows host');
+    throw err;
+  }
+  const res = spawnSync(process.execPath, [path.join(link, 'server', 'cli.js'), 'bogus'], {
+    encoding: 'utf8',
+  });
+  assert.equal(res.status, 2);
+  assert.match(res.stderr, /^Usage:/);
+});
+
+test('ensureServer fails fast when the server process exits with an error', async () => {
+  const child = new EventEmitter();
+  const started = Date.now();
+  await assert.rejects(
+    ensureServer({
+      dir: tmp(),
+      env: {},
+      deps: {
+        findRunning: async () => null,
+        spawnServer: () => {
+          setImmediate(() => child.emit('exit', 1));
+          return child;
+        },
+      },
+    }),
+    /did not start.*arcade\.log/,
+  );
+  assert.ok(Date.now() - started < 1500);
 });

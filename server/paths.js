@@ -1,6 +1,7 @@
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const pluginRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -35,4 +36,17 @@ export function dataDir({ flag, env = process.env } = {}) {
     if (usable(candidate)) return path.resolve(candidate);
   }
   return path.join(os.homedir(), '.claude', 'arcade');
+}
+
+// True when the module at importMetaUrl is the process entry point, even when
+// it was started through a symlink or a differently-cased path.
+export function isMainModule(importMetaUrl) {
+  try {
+    const arg = process.argv[1];
+    if (!arg) return false;
+    if (pathToFileURL(arg).href === importMetaUrl) return true;
+    return fs.realpathSync(arg) === fs.realpathSync(fileURLToPath(importMetaUrl));
+  } catch {
+    return false;
+  }
 }

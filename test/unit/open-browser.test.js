@@ -56,3 +56,17 @@ test('openBrowser returns false when no candidate works or none exist', async ()
     false,
   );
 });
+
+test('win32 spawns cmd with verbatim arguments; unsafe URLs are refused', async () => {
+  const { fn, calls } = fakeSpawn({ cmd: 'ok' });
+  const win = { platform: 'win32', isWsl: false, hasDisplay: true };
+  assert.equal(await openBrowser('http://127.0.0.1:4417/#snake', win, fn), true);
+  assert.deepEqual(calls[0].opts, {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+    windowsVerbatimArguments: true,
+  });
+  assert.equal(await openBrowser('http://127.0.0.1:1/&calc', win, fn), false);
+  assert.equal(calls.length, 1);
+});

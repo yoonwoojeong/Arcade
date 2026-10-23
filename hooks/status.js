@@ -1,8 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
-import { dataDir, pluginRoot } from '../server/paths.js';
+import { dataDir, pluginRoot, isMainModule } from '../server/paths.js';
 import { resolveSettings } from '../server/settings.js';
 import { applyEvent, updateStatus } from '../server/status-store.js';
 
@@ -45,20 +44,7 @@ export function run({ state, stdinText, env, now, spawnAutoOpen }) {
   }
 }
 
-function isMain() {
-  try {
-    const arg = process.argv[1];
-    if (!arg) return false;
-    return (
-      pathToFileURL(arg).href === import.meta.url ||
-      pathToFileURL(fs.realpathSync(arg)).href === import.meta.url
-    );
-  } catch {
-    return false;
-  }
-}
-
-if (isMain()) {
+if (isMainModule(import.meta.url)) {
   try {
     let stdinText = '';
     try {
