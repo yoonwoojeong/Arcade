@@ -7,6 +7,7 @@ import { findRunning, removeLock, isAlive } from './lifecycle.js';
 import { PortRangeBusyError } from './server.js';
 import { loadRegistry } from './registry.js';
 import { openBrowser } from './open-browser.js';
+import { autoOpen } from './auto-open.js';
 
 const START_TIMEOUT_MS = 3000;
 const POLL_MS = 100;
@@ -123,6 +124,7 @@ export async function main(
       io.out(`Claude Arcade is running at ${urlOf(await ensureServer({ dir, env, deps }))}`);
       return 0;
     },
+    'auto-open': cmdAutoOpen,
     stop: cmdStop,
     status: cmdStatus,
     games: async () => {
@@ -145,6 +147,28 @@ export async function main(
     io.out(`Claude Arcade is running at ${url}`);
     if (!(await deps.openBrowser(url))) {
       io.out("Couldn't open a browser automatically — open the URL above.");
+    }
+    return 0;
+  }
+
+  async function cmdAutoOpen() {
+    try {
+      const [sessionId, delay] = args;
+      if (!sessionId || !/^\d+$/.test(delay ?? '')) return 0;
+      await autoOpen({
+        sessionId,
+        delaySec: Number(delay),
+        dir,
+        env,
+        deps: {
+          sleep: deps.sleep ?? sleep,
+          ensureServer: deps.ensureServer ?? ((a) => ensureServer({ ...a, deps })),
+          openBrowser: deps.openBrowser,
+          fetchHealth: deps.fetchHealth ?? (async (d) => (await deps.findRunning(d))?.health),
+        },
+      });
+    } catch {
+      // auto-open runs detached and must stay silent
     }
     return 0;
   }
