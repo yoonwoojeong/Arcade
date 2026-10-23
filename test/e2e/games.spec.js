@@ -79,6 +79,23 @@ test('P toggles pause', async ({ page, baseURL }) => {
   await expect(page.locator('.game-root')).toBeFocused();
 });
 
+test('holding P (auto-repeat) does not bounce pause and resume', async ({ page, baseURL }) => {
+  await launch(page, baseURL, '2048');
+  await page.keyboard.press('p');
+  await expect(body(page)).toHaveAttribute('data-game-state', 'paused');
+  await page.evaluate(() => {
+    for (let i = 0; i < 3; i++) {
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'p', code: 'KeyP', repeat: true, bubbles: true }),
+      );
+    }
+  });
+  await expect(body(page)).toHaveAttribute('data-game-state', 'paused');
+  await expect(page.locator('#paused-panel')).toBeVisible();
+  await page.keyboard.press('p');
+  await expect(body(page)).toHaveAttribute('data-game-state', 'running');
+});
+
 test('leaving the window or hiding the tab pauses the game until Resume', async ({
   page,
   baseURL,

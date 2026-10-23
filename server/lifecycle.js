@@ -9,6 +9,9 @@ const HEALTH_TIMEOUT_MS = 1000;
 
 // defaultFetchHealth's answer when nothing listens on the port (as opposed to no answer).
 export const HEALTH_REFUSED = Object.freeze({ refused: true });
+// defaultFetchHealth's answer when something replied on the port but not with arcade health JSON
+// (non-200 or a non-JSON body): a definite non-arcade answer, unlike a timeout (null).
+export const HEALTH_FOREIGN = Object.freeze({ foreign: true });
 
 export function readLock(dir) {
   try {
@@ -61,7 +64,7 @@ export function defaultFetchHealth(port) {
         (res) => {
           if (res.statusCode !== 200) {
             res.resume();
-            done(null);
+            done(HEALTH_FOREIGN);
             return;
           }
           let body = '';
@@ -73,7 +76,7 @@ export function defaultFetchHealth(port) {
             try {
               done(JSON.parse(body));
             } catch {
-              done(null);
+              done(HEALTH_FOREIGN);
             }
           });
           res.on('error', () => done(null));
@@ -90,9 +93,11 @@ export function defaultFetchHealth(port) {
   });
 }
 
-// The lock is removed only when it is certainly stale: the PID is dead, nothing listens on
-// its port, or something else answers there. A live server that does not answer /health in
-// time keeps its lock (findRunning returns null), so callers never start a second server.
+// The lock is removed when it is certainly stale: the PID is dead, nothing listens on its
+// port, or something definitely not this arcade answers there (non-200, non-JSON, wrong
+// name/pid; the PID was probably reused). Only a live PID whose port gives no answer in time
+// is unconfirmed: it keeps its lock (findRunning returns null) so callers never start a second
+// server, and nobody may signal that PID because its identity was not verified.
 export async function findRunning(dir, { fetchHealth = defaultFetchHealth } = {}) {
   const lock = readLock(dir);
   if (!lock) return null;
@@ -106,7 +111,7 @@ export async function findRunning(dir, { fetchHealth = defaultFetchHealth } = {}
   } catch {
     // no answer
   }
-  if (health === HEALTH_REFUSED || (health && typeof health === 'object')) {
+  if (health && typeof health === 'object') {
     if (health.name === 'claude-arcade' && health.pid === lock.pid) return { lock, health };
     removeLock(dir, { pid: lock.pid });
   }

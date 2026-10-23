@@ -13,6 +13,7 @@ import {
   findRunning,
   defaultFetchHealth,
   HEALTH_REFUSED,
+  HEALTH_FOREIGN,
   createIdleTimer,
 } from '../../server/lifecycle.js';
 
@@ -97,6 +98,46 @@ test('findRunning removes a lock whose pid is dead', async () => {
   assert.equal(readLock(dir), null);
 });
 
+function listen(handler) {
+  return new Promise((resolve) => {
+    const server = http.createServer(handler);
+    server.listen(0, '127.0.0.1', () => resolve(server));
+  });
+}
+
+test('findRunning removes the lock when another server answers non-200 or non-JSON on its port', async () => {
+  const notFound = await listen((req, res) => {
+    res.statusCode = 404;
+    res.end('nope');
+  });
+  const notJson = await listen((req, res) => res.end('<html>hi</html>'));
+  try {
+    for (const server of [notFound, notJson]) {
+      const dir = tmp();
+      // live PID (this process), but the port belongs to an unrelated server
+      writeLock(dir, lockFor({ port: server.address().port }));
+      assert.equal(await findRunning(dir), null);
+      assert.equal(readLock(dir), null);
+    }
+  } finally {
+    await Promise.all([notFound, notJson].map((s) => new Promise((r) => s.close(r))));
+  }
+});
+
+test('findRunning keeps the lock when the live PID times out on /health', async () => {
+  const hang = await listen(() => {});
+  try {
+    const dir = tmp();
+    const lock = lockFor({ port: hang.address().port });
+    writeLock(dir, lock);
+    assert.equal(await findRunning(dir), null);
+    assert.deepEqual(readLock(dir), lock);
+  } finally {
+    hang.closeAllConnections();
+    hang.close();
+  }
+});
+
 test('findRunning rejects a healthy port that is not claude-arcade', async () => {
   const dir = tmp();
   writeLock(dir, lockFor());
@@ -131,14 +172,7 @@ test('findRunning keeps the lock of a live server that does not answer /health',
   assert.deepEqual(readLock(dir), lockFor());
 });
 
-function listen(handler) {
-  return new Promise((resolve) => {
-    const server = http.createServer(handler);
-    server.listen(0, '127.0.0.1', () => resolve(server));
-  });
-}
-
-test('defaultFetchHealth parses health JSON and resolves null on failures', async () => {
+test('defaultFetchHealth parses health JSON and classifies failures', async () => {
   const good = await listen((req, res) => {
     if (req.url === '/health') {
       res.setHeader('content-type', 'application/json');
@@ -156,8 +190,8 @@ test('defaultFetchHealth parses health JSON and resolves null on failures', asyn
   const goodPort = good.address().port;
   try {
     assert.equal((await defaultFetchHealth(goodPort)).name, 'claude-arcade');
-    assert.equal(await defaultFetchHealth(bad.address().port), null);
-    assert.equal(await defaultFetchHealth(non200.address().port), null);
+    assert.equal(await defaultFetchHealth(bad.address().port), HEALTH_FOREIGN);
+    assert.equal(await defaultFetchHealth(non200.address().port), HEALTH_FOREIGN);
   } finally {
     await Promise.all([good, bad, non200].map((s) => new Promise((r) => s.close(r))));
   }

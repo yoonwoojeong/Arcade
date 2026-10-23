@@ -378,7 +378,7 @@ document.addEventListener('keydown', (e) => {
   }
   // P while paused resumes (while running, ctx.input's pause action pauses)
   const modified = e.ctrlKey || e.metaKey || e.altKey || e.shiftKey;
-  if (!modified && host.state === 'paused' && actionForKey(e.code) === 'pause') {
+  if (!modified && !e.repeat && host.state === 'paused' && actionForKey(e.code) === 'pause') {
     e.preventDefault();
     resumeGame();
   }

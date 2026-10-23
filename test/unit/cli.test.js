@@ -239,7 +239,7 @@ test('the spawned server gets no inherited CLAUDE_PLUGIN_OPTION_* (only explicit
   assert.equal(seen[1].CLAUDE_PLUGIN_OPTION_PORT, undefined);
 });
 
-test('an unresponsive server is reported, not duplicated, and stop still stops it', async () => {
+test('an unresponsive server is reported, not duplicated, and stop never kills it', async () => {
   const h = harness();
   // a live process whose port accepts connections but never answers /health
   const child = spawn(
@@ -282,10 +282,56 @@ test('an unresponsive server is reported, not duplicated, and stop still stops i
     assert.equal(spawned, false);
     assert.equal(readLock(h.dir).pid, child.pid);
 
+    // stop must not signal a PID it could not verify: no kill, lock kept, non-zero exit
+    const kills = [];
+    const h2 = { ...h };
+    const code = await main(
+      ['stop', '--data-dir', h.dir],
+      { env: { ...process.env }, out: (x) => h.out.push(x), err: (x) => h.err.push(x) },
+      {
+        kill: (pid) => kills.push(pid),
+      },
+    );
+    assert.equal(code, 1);
+    assert.deepEqual(kills, []);
+    assert.equal(isAlive(child.pid), true);
+    assert.equal(readLock(h2.dir).pid, child.pid);
+    assert.deepEqual(h.out, []);
+    assert.deepEqual(h.err, [
+      `Claude Arcade (pid ${child.pid}) is not responding and could not be verified; it was not stopped. If it is the arcade, end it manually, then run /arcade:stop again.`,
+    ]);
+  } finally {
+    child.kill();
+  }
+});
+
+test('stop kills a confirmed server whose shutdown request fails', async () => {
+  const h = harness();
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+  try {
+    const lock = { port: 1, pid: child.pid, startedAt: 'x', token: 't', rootDir: '/r' };
+    writeLock(h.dir, lock);
+    const kills = [];
     const exited = new Promise((r) => child.once('exit', r));
-    assert.equal(await h.run('stop'), 0);
-    assert.deepEqual(h.out, ['Claude Arcade stopped.']);
+    const code = await main(
+      ['stop', '--data-dir', h.dir],
+      { env: { ...process.env }, out: (x) => h.out.push(x), err: (x) => h.err.push(x) },
+      {
+        // identity confirmed through /health (name + pid), but the shutdown POST fails
+        findRunning: async () => ({ lock, health: { name: 'claude-arcade', pid: child.pid } }),
+        fetch: async () => {
+          throw new Error('refused');
+        },
+        kill: (pid) => {
+          kills.push(pid);
+          process.kill(pid);
+        },
+      },
+    );
     await exited;
+    assert.equal(code, 0);
+    assert.deepEqual(kills, [child.pid]);
+    assert.deepEqual(h.out, ['Claude Arcade stopped.']);
     assert.equal(readLock(h.dir), null);
   } finally {
     child.kill();

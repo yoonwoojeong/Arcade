@@ -43,9 +43,12 @@ const realDeps = () => ({
   spawnServer,
   findRunning,
   fetch: globalThis.fetch,
+  kill: (pid) => process.kill(pid),
   loadGames: () => loadRegistry(path.join(pluginRoot, 'games')).games,
 });
 
+// Only called with a server whose identity findRunning confirmed through /health (name and
+// pid match) in this same call: the kill fallback must never reach an unverified PID.
 async function shutdownServer({ lock }, dir, deps) {
   try {
     const res = await deps.fetch(`http://127.0.0.1:${lock.port}/api/shutdown`, {
@@ -56,7 +59,7 @@ async function shutdownServer({ lock }, dir, deps) {
     if (!res.ok) throw new Error(`status ${res.status}`);
   } catch {
     try {
-      process.kill(lock.pid);
+      deps.kill(lock.pid);
     } catch {
       // already gone
     }
@@ -199,13 +202,16 @@ export async function main(
   }
 
   async function cmdStop() {
-    let running = await deps.findRunning(dir);
+    const running = await deps.findRunning(dir);
     if (!running) {
-      // a live server that does not answer /health keeps its lock: stop it anyway
+      // a live PID that timed out on /health keeps its lock but is unverified: never signal it
       const lock = readLock(dir);
-      if (lock && isAlive(lock.pid)) running = { lock };
-    }
-    if (!running) {
+      if (lock && isAlive(lock.pid)) {
+        io.err(
+          `Claude Arcade (pid ${lock.pid}) is not responding and could not be verified; it was not stopped. If it is the arcade, end it manually, then run /arcade:stop again.`,
+        );
+        return 1;
+      }
       io.out('Claude Arcade is not running.');
       return 0;
     }
