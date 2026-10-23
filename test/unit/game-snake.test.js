@@ -218,6 +218,10 @@ test('step on a dead snake is a no-op', () => {
 test('index: pause clears the loop timer, resume restarts it, death announces and reports', async () => {
   const { installFakeEnv } = await import('../helpers/fake-env.js');
   const env = installFakeEnv();
+  // index.js places food with Math.random. Pin it so food always lands on cell (0,0), off the
+  // snake's straight path up column 10; otherwise the snake can eat on its way to the wall.
+  const realRandom = Math.random;
+  Math.random = () => 0;
   try {
     const { default: createGame } = await import('../../games/snake/index.js');
     const handlers = new Map();
@@ -254,6 +258,7 @@ test('index: pause clears the loop timer, resume restarts it, death announces an
     game.destroy();
     assert.equal(env.activeTimers(), 0);
   } finally {
+    Math.random = realRandom;
     env.restore();
   }
 });
