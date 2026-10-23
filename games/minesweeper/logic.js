@@ -117,3 +117,16 @@ export function formatRemaining(n) {
   if (n < 0) return `${-n} more flag${n === -1 ? '' : 's'} than mines`;
   return `${n} mine${n === 1 ? '' : 's'} remaining`;
 }
+
+// A keyboard-generated click follows the key that ctx.input already handled, on the same cell.
+// A click with no such recent input (e.g. a screen reader's synthetic activation) is real.
+export function isInputEcho(lastInput, r, c, now, windowMs = 400) {
+  return (
+    Boolean(lastInput) && lastInput.r === r && lastInput.c === c && now - lastInput.at < windowMs
+  );
+}
+
+// Whole seconds played: time banked before this run plus the current run, if any.
+export function elapsedSeconds(accMs, runStart, now) {
+  return Math.floor((accMs + (runStart == null ? 0 : now - runStart)) / 1000);
+}

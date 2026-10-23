@@ -7,6 +7,8 @@ import {
   describeCell,
   computeAdjacent,
   isPointerEcho,
+  isInputEcho,
+  elapsedSeconds,
   formatRemaining,
 } from '../../games/minesweeper/logic.js';
 import { mulberry32 } from '../helpers/rng.js';
@@ -225,4 +227,21 @@ test('formatRemaining phrasing', () => {
   assert.equal(formatRemaining(10), '10 mines remaining');
   assert.equal(formatRemaining(-2), '2 more flags than mines');
   assert.equal(formatRemaining(-1), '1 more flag than mines');
+});
+
+test('isInputEcho dedupes only the same cell shortly after a handled key', () => {
+  const last = { at: 1000, r: 2, c: 3 };
+  assert.equal(isInputEcho(last, 2, 3, 1100), true);
+  assert.equal(isInputEcho(last, 2, 3, 1400), false);
+  assert.equal(isInputEcho(last, 2, 4, 1100), false);
+  assert.equal(isInputEcho(last, 1, 3, 1100), false);
+  // a screen reader's synthetic click with no preceding key is never an echo
+  assert.equal(isInputEcho(null, 2, 3, 1100), false);
+});
+
+test('elapsedSeconds accumulates across pauses and floors to whole seconds', () => {
+  assert.equal(elapsedSeconds(0, null, 99999), 0);
+  assert.equal(elapsedSeconds(2500, null, 0), 2);
+  assert.equal(elapsedSeconds(2500, 10000, 11600), 4);
+  assert.equal(elapsedSeconds(0, 5000, 5999), 0);
 });
