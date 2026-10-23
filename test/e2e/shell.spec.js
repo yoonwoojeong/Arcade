@@ -71,9 +71,20 @@ test('badge text is only rewritten when it changes', async ({ page, baseURL, set
   expect(await page.evaluate(() => window.__badgeMutations)).toBe(0);
 });
 
-test('menu shows the empty state when no games are installed', async ({ page, baseURL }) => {
+test('menu lists the three installed games', async ({ page, baseURL }) => {
   await page.goto(baseURL);
-  await expect(page.locator('#menu')).toContainText('No games installed.');
+  const cards = page.locator('#menu .game-card');
+  await expect(cards).toHaveCount(3);
+  await expect(page.locator('#menu')).not.toContainText('No games installed.');
+  await expect(page.locator('#menu-loading')).toHaveCount(0);
+  for (const [id, title] of [
+    ['2048', '2048'],
+    ['minesweeper', 'Minesweeper'],
+    ['snake', 'Snake'],
+  ]) {
+    await expect(page.locator(`[data-game-id="${id}"] .game-title`)).toHaveText(title);
+  }
+  await expect(page.locator('[data-game-id="snake"]')).toContainText('Screen reader: none');
   await expect(page.locator('body')).toHaveAttribute('data-game', '');
   await expect(page.locator('body')).toHaveAttribute('data-game-state', 'empty');
 });
