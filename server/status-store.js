@@ -1,12 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
+import { writeFileAtomicSync } from './fs-atomic.js';
 
 export const STATUS_FILE = 'status.json';
 
 const PRUNE_MS = 24 * 60 * 60 * 1000;
-const RENAME_RETRIES = 5;
-const RENAME_RETRY_MS = 10;
 
 export function emptyStatus() {
   return { version: 1, updatedAt: null, sessions: {} };
@@ -60,35 +58,9 @@ export function readStatus(dir) {
   return emptyStatus();
 }
 
-function sleepSync(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
 export function writeStatusAtomic(dir, status) {
   fs.mkdirSync(dir, { recursive: true });
-  const target = path.join(dir, STATUS_FILE);
-  const rand = crypto.randomBytes(6).toString('hex');
-  const tmpFile = path.join(dir, `${STATUS_FILE}.${process.pid}.${rand}.tmp`);
-  try {
-    fs.writeFileSync(tmpFile, JSON.stringify(status, null, 2) + '\n');
-    for (let attempt = 0; ; attempt++) {
-      try {
-        fs.renameSync(tmpFile, target);
-        return;
-      } catch (err) {
-        const transient = process.platform === 'win32' && ['EPERM', 'EBUSY'].includes(err.code);
-        if (!transient || attempt >= RENAME_RETRIES - 1) throw err;
-        sleepSync(RENAME_RETRY_MS);
-      }
-    }
-  } catch (err) {
-    try {
-      fs.rmSync(tmpFile, { force: true });
-    } catch {
-      // best effort
-    }
-    throw err;
-  }
+  writeFileAtomicSync(path.join(dir, STATUS_FILE), JSON.stringify(status, null, 2) + '\n');
 }
 
 export function updateStatus(dir, fn) {

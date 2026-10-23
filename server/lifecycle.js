@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
-import crypto from 'node:crypto';
+import { writeFileAtomicSync } from './fs-atomic.js';
 
 export const LOCK_FILE = 'server.lock';
 
@@ -26,20 +26,7 @@ export function readLock(dir) {
 
 export function writeLock(dir, lock) {
   fs.mkdirSync(dir, { recursive: true });
-  const target = path.join(dir, LOCK_FILE);
-  const rand = crypto.randomBytes(6).toString('hex');
-  const tmpFile = path.join(dir, `${LOCK_FILE}.${process.pid}.${rand}.tmp`);
-  try {
-    fs.writeFileSync(tmpFile, JSON.stringify(lock, null, 2) + '\n');
-    fs.renameSync(tmpFile, target);
-  } catch (err) {
-    try {
-      fs.rmSync(tmpFile, { force: true });
-    } catch {
-      // best effort
-    }
-    throw err;
-  }
+  writeFileAtomicSync(path.join(dir, LOCK_FILE), JSON.stringify(lock, null, 2) + '\n');
 }
 
 export function removeLock(dir, { pid } = {}) {

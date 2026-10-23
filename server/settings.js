@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { writeFileAtomicSync } from './fs-atomic.js';
 
 export const DEFAULTS = Object.freeze({ mode: 'alert', port: 4417, autoOpenDelay: 20 });
 
@@ -89,9 +90,7 @@ export function writeSettings(dataDir, patch) {
   const settings = { ...existing, ...validated };
   try {
     fs.mkdirSync(dataDir, { recursive: true });
-    const tmpFile = path.join(dataDir, `settings.json.${process.pid}.${Date.now()}.tmp`);
-    fs.writeFileSync(tmpFile, JSON.stringify(settings, null, 2) + '\n');
-    fs.renameSync(tmpFile, settingsFile(dataDir));
+    writeFileAtomicSync(settingsFile(dataDir), JSON.stringify(settings, null, 2) + '\n');
   } catch (err) {
     return { ok: false, errors: [`could not write settings: ${err.message}`] };
   }
@@ -118,9 +117,7 @@ export function writePluginOptions(dataDir, env) {
       // missing or unreadable: write it
     }
     fs.mkdirSync(dataDir, { recursive: true });
-    const tmpFile = path.join(dataDir, `plugin-options.json.${process.pid}.${Date.now()}.tmp`);
-    fs.writeFileSync(tmpFile, content);
-    fs.renameSync(tmpFile, file);
+    writeFileAtomicSync(file, content);
   } catch {
     // best effort
   }
