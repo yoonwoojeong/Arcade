@@ -1,0 +1,14 @@
+{
+  "id": "snake",
+  "title": "Snake",
+  "version": "1.0.0",
+  "sdk": 1,
+  "author": "yoonwoojeong",
+  "description": "Steer the snake, eat the food and avoid the walls and your own tail. Not accessible to screen readers.",
+  "controls": {
+    "keyboard": ["Arrow keys or WASD: steer", "Enter/Space: play again after game over"],
+    "touch": "swipe to steer, tap to play again"
+  },
+  "accessibility": { "screenReader": "none", "reducedMotion": true, "colorIndependent": true },
+  "sessionLength": "short"
+}
