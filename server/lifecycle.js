@@ -7,6 +7,9 @@ export const LOCK_FILE = 'server.lock';
 
 const HEALTH_TIMEOUT_MS = 1000;
 
+// defaultFetchHealth's answer when nothing listens on the port (as opposed to no answer).
+export const HEALTH_REFUSED = Object.freeze({ refused: true });
+
 export function readLock(dir) {
   try {
     const lock = JSON.parse(fs.readFileSync(path.join(dir, LOCK_FILE), 'utf8'));
@@ -54,7 +57,7 @@ export function defaultFetchHealth(port) {
     };
     try {
       const req = http.get(
-        { host: '127.0.0.1', port, path: '/health', timeout: HEALTH_TIMEOUT_MS },
+        { host: '127.0.0.1', port, path: '/health', timeout: HEALTH_TIMEOUT_MS, agent: false },
         (res) => {
           if (res.statusCode !== 200) {
             res.resume();
@@ -80,28 +83,33 @@ export function defaultFetchHealth(port) {
         req.destroy();
         done(null);
       });
-      req.on('error', () => done(null));
+      req.on('error', (err) => done(err?.code === 'ECONNREFUSED' ? HEALTH_REFUSED : null));
     } catch {
       done(null);
     }
   });
 }
 
+// The lock is removed only when it is certainly stale: the PID is dead, nothing listens on
+// its port, or something else answers there. A live server that does not answer /health in
+// time keeps its lock (findRunning returns null), so callers never start a second server.
 export async function findRunning(dir, { fetchHealth = defaultFetchHealth } = {}) {
   const lock = readLock(dir);
   if (!lock) return null;
-  if (isAlive(lock.pid)) {
-    let health = null;
-    try {
-      health = await fetchHealth(lock.port);
-    } catch {
-      // treat as unhealthy
-    }
-    if (health && health.name === 'claude-arcade' && health.pid === lock.pid) {
-      return { lock, health };
-    }
+  if (!isAlive(lock.pid)) {
+    removeLock(dir, { pid: lock.pid });
+    return null;
   }
-  removeLock(dir, { pid: lock.pid });
+  let health = null;
+  try {
+    health = await fetchHealth(lock.port);
+  } catch {
+    // no answer
+  }
+  if (health === HEALTH_REFUSED || (health && typeof health === 'object')) {
+    if (health.name === 'claude-arcade' && health.pid === lock.pid) return { lock, health };
+    removeLock(dir, { pid: lock.pid });
+  }
   return null;
 }
 

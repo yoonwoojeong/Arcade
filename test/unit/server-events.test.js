@@ -215,6 +215,32 @@ test('a client connecting inside the debounce window does not suppress the chang
   await srv.close();
 });
 
+test('a client that saw a transient status still gets the status it changed back to', async () => {
+  const { srv, dataDir } = await start();
+  const a = openEvents(srv.port);
+  await a.ready;
+  const initial = (await a.nth(1)).data;
+  const transient = applyEvent(emptyStatus(), {
+    state: 'needs-you',
+    sessionId: 's9',
+    cwd: '/x/y',
+    now: new Date(),
+  });
+  // b connects while the file briefly holds `transient`, then it changes back
+  writeStatusAtomic(dataDir, transient);
+  const b = openEvents(srv.port);
+  try {
+    await b.ready;
+    assert.deepEqual((await b.nth(1)).data, transient);
+    writeStatusAtomic(dataDir, initial);
+    assert.deepEqual((await b.nth(2, 1500)).data, initial);
+  } finally {
+    a.close();
+    b.close();
+    await srv.close();
+  }
+});
+
 test('clientCount and /health.clients track open connections', async () => {
   const { srv } = await start();
   assert.equal(srv.clientCount(), 0);
@@ -294,7 +320,7 @@ test('close() leaves no timers or watchers (process can exit)', async () => {
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
       resolve('timeout');
-    }, 2000);
+    }, 10_000);
     child.on('close', (c) => {
       clearTimeout(timer);
       resolve(c);

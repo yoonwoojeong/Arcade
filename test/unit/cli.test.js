@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,7 +8,7 @@ import http from 'node:http';
 import { EventEmitter } from 'node:events';
 import { tmp } from '../helpers/tmp.js';
 import { main, checkNode, ensureServer } from '../../server/cli.js';
-import { readLock, findRunning, isAlive } from '../../server/lifecycle.js';
+import { readLock, writeLock, findRunning, isAlive } from '../../server/lifecycle.js';
 
 async function freePort() {
   const s = http.createServer();
@@ -201,4 +201,93 @@ test('ensureServer fails fast when the server process exits with an error', asyn
     /did not start.*arcade\.log/,
   );
   assert.ok(Date.now() - started < 1500);
+});
+
+test('the spawned server gets no inherited CLAUDE_PLUGIN_OPTION_* (only explicit flags)', async () => {
+  const dir = tmp();
+  const seen = [];
+  const io = {
+    env: {
+      PATH: process.env.PATH,
+      CLAUDE_PLUGIN_OPTION_MODE: 'quiet',
+      CLAUDE_PLUGIN_OPTION_PORT: '5000',
+      CLAUDE_PLUGIN_OPTION_AUTOOPENDELAY: '30',
+    },
+    out: () => {},
+    err: () => {},
+  };
+  const deps = {
+    findRunning: async () => null,
+    spawnServer: (d, env) => {
+      seen.push(env);
+      const child = new EventEmitter();
+      setImmediate(() => child.emit('exit', 1));
+      return child;
+    },
+  };
+  assert.equal(await main(['start', '--data-dir', dir], io, deps), 1);
+  assert.equal(seen.length, 1);
+  assert.deepEqual(
+    Object.keys(seen[0]).filter((k) => k.startsWith('CLAUDE_PLUGIN_OPTION_')),
+    [],
+  );
+  assert.equal(seen[0].CLAUDE_PLUGIN_DATA, dir);
+  assert.equal(seen[0].PATH, process.env.PATH);
+
+  assert.equal(await main(['start', '--data-dir', dir, '--mode', 'auto'], io, deps), 1);
+  assert.equal(seen[1].CLAUDE_PLUGIN_OPTION_MODE, 'auto');
+  assert.equal(seen[1].CLAUDE_PLUGIN_OPTION_PORT, undefined);
+});
+
+test('an unresponsive server is reported, not duplicated, and stop still stops it', async () => {
+  const h = harness();
+  // a live process whose port accepts connections but never answers /health
+  const child = spawn(
+    process.execPath,
+    [
+      '-e',
+      `require('node:http').createServer(() => {}).listen(0, '127.0.0.1', function () {
+        console.log(this.address().port);
+      });`,
+    ],
+    { stdio: ['ignore', 'pipe', 'ignore'] },
+  );
+  try {
+    const port = await new Promise((resolve) =>
+      child.stdout.once('data', (d) => resolve(Number(String(d).trim()))),
+    );
+    writeLock(h.dir, { port, pid: child.pid, startedAt: 'x', token: 't', rootDir: '/r' });
+    let spawned = false;
+    const started = Date.now();
+    await assert.rejects(
+      ensureServer({
+        dir: h.dir,
+        env: {},
+        deps: {
+          spawnServer: () => {
+            spawned = true;
+            return new EventEmitter();
+          },
+        },
+      }),
+      (err) => {
+        assert.equal(
+          err.message,
+          `Claude Arcade server (pid ${child.pid}) is not responding — run /arcade:stop or see ${path.join(h.dir, 'arcade.log')}`,
+        );
+        return true;
+      },
+    );
+    assert.ok(Date.now() - started < 6000);
+    assert.equal(spawned, false);
+    assert.equal(readLock(h.dir).pid, child.pid);
+
+    const exited = new Promise((r) => child.once('exit', r));
+    assert.equal(await h.run('stop'), 0);
+    assert.deepEqual(h.out, ['Claude Arcade stopped.']);
+    await exited;
+    assert.equal(readLock(h.dir), null);
+  } finally {
+    child.kill();
+  }
 });

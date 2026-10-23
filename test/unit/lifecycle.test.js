@@ -12,6 +12,7 @@ import {
   isAlive,
   findRunning,
   defaultFetchHealth,
+  HEALTH_REFUSED,
   createIdleTimer,
 } from '../../server/lifecycle.js';
 
@@ -112,9 +113,22 @@ test('findRunning rejects a healthy port that is not claude-arcade', async () =>
   );
   assert.equal(readLock(dir), null);
 
+  // nothing listens on the port (e.g. the PID was reused): the lock is stale
+  writeLock(dir, lockFor());
+  assert.equal(await findRunning(dir, { fetchHealth: async () => HEALTH_REFUSED }), null);
+  assert.equal(readLock(dir), null);
+});
+
+test('findRunning keeps the lock of a live server that does not answer /health', async () => {
+  const dir = tmp();
   writeLock(dir, lockFor());
   assert.equal(await findRunning(dir, { fetchHealth: async () => null }), null);
-  assert.equal(readLock(dir), null);
+  assert.deepEqual(readLock(dir), lockFor());
+  const failing = async () => {
+    throw new Error('boom');
+  };
+  assert.equal(await findRunning(dir, { fetchHealth: failing }), null);
+  assert.deepEqual(readLock(dir), lockFor());
 });
 
 function listen(handler) {
@@ -139,15 +153,16 @@ test('defaultFetchHealth parses health JSON and resolves null on failures', asyn
     res.statusCode = 500;
     res.end(JSON.stringify(healthFor()));
   });
+  const goodPort = good.address().port;
   try {
-    assert.equal((await defaultFetchHealth(good.address().port)).name, 'claude-arcade');
+    assert.equal((await defaultFetchHealth(goodPort)).name, 'claude-arcade');
     assert.equal(await defaultFetchHealth(bad.address().port), null);
     assert.equal(await defaultFetchHealth(non200.address().port), null);
   } finally {
-    for (const s of [good, bad, non200]) s.close();
+    await Promise.all([good, bad, non200].map((s) => new Promise((r) => s.close(r))));
   }
-  // closed port: connection refused
-  assert.equal(await defaultFetchHealth(good.address()?.port ?? 1), null);
+  // closed port: connection refused, which is distinct from "no answer"
+  assert.equal(await defaultFetchHealth(goodPort), HEALTH_REFUSED);
 });
 
 test('defaultFetchHealth resolves null on timeout', async () => {

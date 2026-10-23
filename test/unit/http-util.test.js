@@ -51,7 +51,7 @@ test('contentType maps known extensions and defaults', () => {
 test('SECURITY_HEADERS carry the spec values', () => {
   assert.equal(
     SECURITY_HEADERS['Content-Security-Policy'],
-    "default-src 'self'; img-src 'self' data:; media-src 'self' data:",
+    "default-src 'self'; img-src 'self' data:; media-src 'self' data:; frame-ancestors 'none'; base-uri 'none'",
   );
   assert.equal(SECURITY_HEADERS['X-Content-Type-Options'], 'nosniff');
   assert.equal(SECURITY_HEADERS['Referrer-Policy'], 'no-referrer');

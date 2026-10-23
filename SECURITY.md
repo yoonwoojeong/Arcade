@@ -31,7 +31,7 @@ trying to reach beyond its sandbox. These are the defences:
   so another website cannot change your settings.
 - **Path confinement.** Static files are resolved and served only from `web/` and `games/`. Anything
   that resolves outside those folders (such as `..` traversal) is rejected.
-- **Content-Security-Policy.** `default-src 'self'; img-src 'self' data:; media-src 'self' data:`, plus
+- **Content-Security-Policy.** `default-src 'self'; img-src 'self' data:; media-src 'self' data:; frame-ancestors 'none'; base-uri 'none'` (the page cannot be framed), plus
   `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. Pages load no external
   resources.
 - **Shutdown token.** `POST /api/shutdown` needs a random token stored in `server.lock` in the plugin

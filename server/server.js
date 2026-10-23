@@ -91,7 +91,7 @@ export async function createArcadeServer({
   let server;
   const sseClients = new Map(); // res -> last serialized status sent
   let idle = null;
-  let lastBroadcast = null;
+  let lastSeen = null; // last status read here; only decides idle activity
 
   const logWarnings = (warnings) => {
     const fresh = warnings.filter((w) => !loggedWarnings.has(w));
@@ -261,20 +261,21 @@ export async function createArcadeServer({
   }
   if (!server) throw new PortRangeBusyError(port, port + PORT_SPAN);
 
+  // Each client is compared with what it was last sent, so one that connected
+  // mid-change still converges; a real change also counts as activity.
   const broadcastIfChanged = () => {
     const serialized = JSON.stringify(readStatus(dataDir));
-    if (serialized === lastBroadcast) return;
-    lastBroadcast = serialized;
     const frame = statusFrame(serialized);
     for (const [res, last] of sseClients) {
       if (last === serialized) continue;
       sseClients.set(res, serialized);
       res.write(frame);
     }
-    idle?.activity();
+    if (serialized !== lastSeen) idle?.activity();
+    lastSeen = serialized;
   };
 
-  lastBroadcast = JSON.stringify(readStatus(dataDir));
+  lastSeen = JSON.stringify(readStatus(dataDir));
 
   let debounceTimer = null;
   const scheduleBroadcast = () => {

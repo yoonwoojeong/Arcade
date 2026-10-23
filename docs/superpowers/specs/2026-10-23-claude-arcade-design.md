@@ -190,7 +190,7 @@ It starts the server if needed.
   - `GET /events` — SSE stream; sends the full status on connect and on every change, plus a heartbeat every 15 s.
   - `GET /api/settings`, `POST /api/settings` — read/update `mode` and `autoOpenDelay` (JSON, validated).
   - `GET /health`.
-- **Security:** reject requests whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>` (DNS-rebinding defense); reject `POST` whose `Origin` doesn't match; resolve file paths and reject anything outside `web/` or `games/`; headers `Content-Security-Policy: default-src 'self'; img-src 'self' data:; media-src 'self' data:`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`.
+- **Security:** reject requests whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>` (DNS-rebinding defense); reject `POST` whose `Origin` doesn't match; resolve file paths and reject anything outside `web/` or `games/`; headers `Content-Security-Policy: default-src 'self'; img-src 'self' data:; media-src 'self' data:; frame-ancestors 'none'; base-uri 'none'`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`.
 - **Status watch:** `fs.watch` on the data dir, with a 1 s polling fallback; changes debounced 50 ms then broadcast.
 - **Idle shutdown:** exits after 30 min with no SSE clients and no `status.json` change; removes the lock.
 - `cli.js stop` sends `POST /api/shutdown` (same-origin check, token from `server.lock`), falling back to `process.kill(pid)`.

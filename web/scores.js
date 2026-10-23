@@ -25,7 +25,9 @@ export function createScores(storage) {
       return best[id];
     },
     report(id, n) {
-      if (typeof n !== 'number' || !Number.isFinite(n)) return { best: best[id], isNew: false };
+      // 0 is a restart, not an achievement; negative scores mean nothing here
+      if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0)
+        return { best: best[id], isNew: false };
       if (best[id] !== undefined && n <= best[id]) return { best: best[id], isNew: false };
       best[id] = n;
       try {

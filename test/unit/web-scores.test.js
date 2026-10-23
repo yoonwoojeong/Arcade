@@ -85,3 +85,14 @@ test('inherited object keys are not treated as scores', () => {
   assert.equal(createScores(mapStorage()).get('constructor'), undefined);
   assert.equal(createScores(mapStorage()).get('__proto__'), undefined);
 });
+
+test('zero and negative scores are ignored (a restart reports 0)', () => {
+  const storage = mapStorage();
+  const scores = createScores(storage);
+  assert.deepEqual(scores.report('2048', 0), { best: undefined, isNew: false });
+  assert.deepEqual(scores.report('2048', -3), { best: undefined, isNew: false });
+  assert.equal(scores.get('2048'), undefined);
+  assert.equal(storage.getItem(SCORES_KEY), null);
+  assert.deepEqual(scores.report('2048', 8), { best: 8, isNew: true });
+  assert.deepEqual(scores.report('2048', 0), { best: 8, isNew: false });
+});

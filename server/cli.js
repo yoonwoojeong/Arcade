@@ -3,7 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { pluginRoot, parseGlobalFlags, dataDir as resolveDataDir, isMainModule } from './paths.js';
 import { resolveSettings } from './settings.js';
-import { findRunning, removeLock, isAlive } from './lifecycle.js';
+import { findRunning, readLock, removeLock, isAlive } from './lifecycle.js';
 import { PortRangeBusyError } from './server.js';
 import { loadRegistry } from './registry.js';
 import { openBrowser } from './open-browser.js';
@@ -11,6 +11,7 @@ import { autoOpen } from './auto-open.js';
 
 const START_TIMEOUT_MS = 3000;
 const POLL_MS = 100;
+const SHUTDOWN_REQUEST_MS = 1000;
 const PORT_BUSY_EXIT = 3;
 const USAGE = 'Usage: arcade <open [gameId] | start | stop | status | games>';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -50,6 +51,7 @@ async function shutdownServer({ lock }, dir, deps) {
     const res = await deps.fetch(`http://127.0.0.1:${lock.port}/api/shutdown`, {
       method: 'POST',
       headers: { 'X-Arcade-Token': lock.token },
+      signal: AbortSignal.timeout(SHUTDOWN_REQUEST_MS),
     });
     if (!res.ok) throw new Error(`status ${res.status}`);
   } catch {
@@ -66,9 +68,26 @@ async function shutdownServer({ lock }, dir, deps) {
 const startFailure = (dir) =>
   `Claude Arcade server did not start within 3s — see ${path.join(dir, 'arcade.log')}`;
 
+const notResponding = (pid, dir) =>
+  `Claude Arcade server (pid ${pid}) is not responding — run /arcade:stop or see ${path.join(dir, 'arcade.log')}`;
+
+// findRunning returned null but may have kept the lock of a live server that did not answer
+// /health in time. Retry within the start budget; never start a second server next to it.
+async function waitForUnresponsive(dir, deps) {
+  const deadline = Date.now() + START_TIMEOUT_MS;
+  for (;;) {
+    const lock = readLock(dir);
+    if (!lock || !isAlive(lock.pid)) return null;
+    if (Date.now() >= deadline) throw new Error(notResponding(lock.pid, dir));
+    await sleep(POLL_MS);
+    const found = await deps.findRunning(dir);
+    if (found) return found;
+  }
+}
+
 export async function ensureServer({ dir, env, deps = {} }) {
   deps = { ...realDeps(), ...deps };
-  const existing = await deps.findRunning(dir);
+  const existing = (await deps.findRunning(dir)) ?? (await waitForUnresponsive(dir, deps));
   if (existing) {
     if (path.resolve(existing.health.rootDir ?? '') === path.resolve(pluginRoot)) {
       return existing.lock;
@@ -113,7 +132,13 @@ export async function main(
   const { flags, rest } = parseGlobalFlags(argv);
   const [command, ...args] = rest;
   const dir = resolveDataDir({ flag: flags.dataDir, env: io.env });
-  const env = { ...io.env, CLAUDE_PLUGIN_DATA: dir };
+  // The server takes /plugin options only from plugin-options.json (written by the hooks), so
+  // values inherited from whoever spawned this CLI cannot go stale inside a long-lived server.
+  // Explicit flags still apply.
+  const env = { CLAUDE_PLUGIN_DATA: dir };
+  for (const [key, value] of Object.entries(io.env ?? {})) {
+    if (!key.startsWith('CLAUDE_PLUGIN_OPTION_') && key !== 'CLAUDE_PLUGIN_DATA') env[key] = value;
+  }
   if (flags.mode) env.CLAUDE_PLUGIN_OPTION_MODE = flags.mode;
   if (flags.port) env.CLAUDE_PLUGIN_OPTION_PORT = flags.port;
   if (flags.autoOpenDelay) env.CLAUDE_PLUGIN_OPTION_AUTOOPENDELAY = flags.autoOpenDelay;
@@ -174,7 +199,12 @@ export async function main(
   }
 
   async function cmdStop() {
-    const running = await deps.findRunning(dir);
+    let running = await deps.findRunning(dir);
+    if (!running) {
+      // a live server that does not answer /health keeps its lock: stop it anyway
+      const lock = readLock(dir);
+      if (lock && isAlive(lock.pid)) running = { lock };
+    }
     if (!running) {
       io.out('Claude Arcade is not running.');
       return 0;
