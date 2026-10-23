@@ -90,8 +90,8 @@ Accessibility bugs are welcome and prioritised.
 - The server listens on `127.0.0.1` only, and nothing in the project makes network requests beyond it.
 - The page sees only session state (`working`, `needs-you`, `done`), timestamps and the project folder
   name, which you can hide in Settings. Prompts and tool inputs are never stored.
-- Data lives in the plugin data directory (`${CLAUDE_PLUGIN_DATA}`, typically
-  `~/.claude/plugins/data/<plugin-id>/`): `status.json`, `settings.json`, `plugin-options.json`,
+- Data lives in the plugin data directory, `${CLAUDE_PLUGIN_DATA}` (Claude Code's per-plugin data
+  folder, e.g. under `~/.claude/plugins/data/`; outside Claude Code the fallback is `~/.claude/arcade`): `status.json`, `settings.json`, `plugin-options.json`,
   `server.lock` and `arcade.log`. Game scores and preferences live in your browser's `localStorage`.
 
 See [SECURITY.md](SECURITY.md) for the localhost threat model.
@@ -101,15 +101,15 @@ See [SECURITY.md](SECURITY.md) for the localhost threat model.
 - **"Claude Arcade needs Node.js 20 or newer."** Install Node from <https://nodejs.org>, then restart
   Claude Code. Check with `node --version`.
 - **Ports busy.** Claude Arcade tries your preferred port (default `4417`) and the next 9. If all are
-  taken, the command says which range it tried. Change the `port` option with `/plugin` and try again.
+  taken, the command prints `Ports 4417–4426 are all in use. Change the "port" option for the arcade
+plugin in /plugin.` (with your range). Change the `port` option with `/plugin` and try again.
 - **No browser opens (SSH, containers, headless).** The command prints the URL, for example
   `http://127.0.0.1:4417`. Open it in a browser on the same machine, or forward the port over SSH.
 - **The game did not pause when Claude finished.** Make sure the tab is open and the badge is not
   showing `Offline — reconnecting…`. In `quiet` mode only the badge changes.
 - **Changed a `/plugin` option and nothing happened.** It takes effect after your next prompt. Use the
   Settings panel for an immediate change.
-- **Still stuck?** Look at `arcade.log` in the data directory (see Privacy above, usually
-  `~/.claude/plugins/data/<plugin-id>/arcade.log`). It holds server and hook errors. Hook errors never
+- **Still stuck?** Look at `arcade.log` in the data directory (see Privacy above, `${CLAUDE_PLUGIN_DATA}/arcade.log`, e.g. under `~/.claude/plugins/data/`). It holds server and hook errors. Hook errors never
   affect Claude. Include an excerpt when you file a bug.
 
 ## Contributing

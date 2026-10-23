@@ -77,7 +77,9 @@ export default function createGame(ctx) {
 }
 ```
 
-`Esc` always pauses and returns focus to the shell. If any lifecycle call throws, the shell destroys the
+`Esc` leaves the game: the shell calls `pause()`, then `destroy()`, and returns to the menu with
+focus on the game's card, so unsaved game state is lost (use `ctx.storage` for anything worth keeping).
+If any lifecycle call throws, the shell destroys the
 game, shows "This game crashed — back to menu", and the arcade carries on.
 
 ## The `ctx` API (SDK v1)
@@ -112,8 +114,9 @@ the rest.
 
 - **No network.** No `http(s)://` URLs, `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`,
   `sendBeacon`, workers, or dynamic `import()`.
-- **No code generation or foreign resources.** No `eval`, `new Function`, and no creating `<script>`,
-  `<link>` or `<style>` elements. The Content-Security-Policy would block them anyway.
+- **No code generation or foreign resources.** No `eval`, `new Function`, and no creating `<script>` or
+  `<link>` elements (the contract test rejects these). Do not create `<style>` elements either: the
+  Content-Security-Policy blocks them, so style through the CSSOM.
 - **Relative imports only**, and only inside your own game folder.
 - **Input only through `ctx.input`**, so remapping and touch work for every game. Clicking elements your
   game created inside `ctx.root` is allowed, as long as `destroy()` removes those listeners.

@@ -50,6 +50,6 @@ body:
     attributes:
       label: arcade.log excerpt
       description: >-
-        The log is in the plugin data directory (usually `~/.claude/plugins/data/<plugin-id>/arcade.log`).
+        The log is in the plugin data directory (`${CLAUDE_PLUGIN_DATA}/arcade.log`, Claude Code's per-plugin data folder, e.g. under `~/.claude/plugins/data/`; `~/.claude/arcade/arcade.log` outside Claude Code).
         Paste the relevant lines. Check them first: they may contain your project folder name.
       render: text

@@ -60,8 +60,9 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement at the project
-maintainers via GitHub private vulnerability/conduct reporting at
-https://github.com/yoonwoojeong/Arcade. All complaints will be reviewed and
+project maintainers through GitHub's private reporting form at
+https://github.com/yoonwoojeong/Arcade/security/advisories/new (the same private channel described in
+SECURITY.md, also used for conduct reports). All complaints will be reviewed and
 investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the
