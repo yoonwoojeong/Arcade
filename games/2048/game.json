@@ -1,0 +1,14 @@
+{
+  "id": "2048",
+  "title": "2048",
+  "version": "1.0.0",
+  "sdk": 1,
+  "author": "yoonwoojeong",
+  "description": "Slide and merge numbered tiles to reach 2048. Fully playable with a screen reader.",
+  "controls": {
+    "keyboard": ["Arrow keys: slide tiles", "Enter/Space: new game when over"],
+    "touch": "swipe to slide"
+  },
+  "accessibility": { "screenReader": "full", "reducedMotion": true, "colorIndependent": true },
+  "sessionLength": "untimed"
+}
