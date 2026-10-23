@@ -100,6 +100,33 @@ Accessibility bugs are welcome and prioritised.
 
 See [SECURITY.md](SECURITY.md) for the localhost threat model.
 
+## Remote use
+
+Claude Code often runs on a machine without a browser (a server over SSH, a dev container, a cloud
+session) while you sit at a computer that has one. The arcade's server listens on `127.0.0.1` only,
+on purpose, so you reach it by forwarding its port to your own machine.
+
+When `/arcade:play` cannot open a browser it says how:
+
+- **SSH.** It prints a command such as `ssh -L 4417:127.0.0.1:4417 you@your-server`. Run it on your
+  own machine, then open `http://localhost:4417/`. The host in the command comes from the SSH
+  session's own address, which is not always the name you type, so adjust it to how you normally
+  connect.
+- **Dev containers, remote editors, cloud sessions.** It tells you which port to forward. Use your
+  environment's port forwarding. If it offers none, the arcade cannot be reached from outside.
+
+Keep two things in mind:
+
+- **Use the same port number on both sides.** The server only accepts `localhost:<its port>` and
+  `127.0.0.1:<its port>` as the host, so a forward to a different local port gets `403 Forbidden`. The
+  port is `4417` unless that was busy (see Troubleshooting).
+- **The status flow is unchanged.** The hooks run next to the server, so the pause and banner work the
+  same remotely. If the forward drops, the badge shows `Offline — reconnecting…` and the page
+  reconnects when it is back.
+
+Listening on all network interfaces is not supported: it would expose the arcade's unauthenticated
+settings and shutdown API to everyone who can reach the machine.
+
 ## Troubleshooting
 
 - **"Claude Arcade needs Node.js 20 or newer."** Install Node from <https://nodejs.org>, then restart
@@ -107,8 +134,8 @@ See [SECURITY.md](SECURITY.md) for the localhost threat model.
 - **Ports busy.** Claude Arcade tries your preferred port (default `4417`) and the next 9. If all are
   taken, the command prints `Ports 4417–4426 are all in use. Change the "port" option for the arcade
 plugin in /plugin.` (with your range). Change the `port` option with `/plugin` and try again.
-- **No browser opens (SSH, containers, headless).** The command prints the URL, for example
-  `http://127.0.0.1:4417`. Open it in a browser on the same machine, or forward the port over SSH.
+- **No browser opens (SSH, containers, headless).** The command prints the URL and how to forward the
+  port to your own machine. See [Remote use](#remote-use).
 - **The game did not pause when Claude finished.** Make sure the tab is open and the badge is not
   showing `Offline — reconnecting…`. In `quiet` mode only the badge changes.
 - **Changed a `/plugin` option and nothing happened.** It takes effect after your next prompt (a new

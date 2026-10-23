@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 
 const SETTLE_MS = 250;
 
-export function detectEnv() {
+export function detectEnv(source = process.env) {
   const platform = process.platform;
   let isWsl = false;
   if (platform === 'linux') {
@@ -13,8 +13,9 @@ export function detectEnv() {
       // not readable: assume not WSL
     }
   }
-  const hasDisplay = Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
-  return { platform, isWsl, hasDisplay };
+  const hasDisplay = Boolean(source.DISPLAY || source.WAYLAND_DISPLAY);
+  const isRemote = Boolean(source.SSH_CONNECTION || source.SSH_TTY);
+  return { platform, isWsl, hasDisplay, isRemote };
 }
 
 export function browserCommands(url, { platform, isWsl, hasDisplay }) {

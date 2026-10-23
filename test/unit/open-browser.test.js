@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { browserCommands, openBrowser } from '../../server/open-browser.js';
+import { browserCommands, detectEnv, openBrowser } from '../../server/open-browser.js';
 
 test('command table per platform', () => {
   assert.deepEqual(browserCommands('u', { platform: 'darwin', isWsl: false, hasDisplay: true }), [
@@ -69,4 +69,17 @@ test('win32 spawns cmd with verbatim arguments; unsafe URLs are refused', async 
   });
   assert.equal(await openBrowser('http://127.0.0.1:1/&calc', win, fn), false);
   assert.equal(calls.length, 1);
+});
+
+test('detectEnv reports a remote session from SSH_CONNECTION or SSH_TTY', () => {
+  assert.equal(detectEnv({}).isRemote, false);
+  assert.equal(detectEnv({ SSH_CONNECTION: '1.2.3.4 1 5.6.7.8 22' }).isRemote, true);
+  assert.equal(detectEnv({ SSH_TTY: '/dev/pts/0' }).isRemote, true);
+  assert.equal(detectEnv({ SSH_CONNECTION: '' }).isRemote, false);
+});
+
+test('detectEnv reads the display from the given environment', () => {
+  assert.equal(detectEnv({}).hasDisplay, false);
+  assert.equal(detectEnv({ DISPLAY: ':0' }).hasDisplay, true);
+  assert.equal(detectEnv({ WAYLAND_DISPLAY: 'wayland-0' }).hasDisplay, true);
 });

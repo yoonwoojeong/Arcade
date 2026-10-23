@@ -18,12 +18,16 @@ async function freePort() {
   return port;
 }
 
-function harness(extraDeps = {}) {
+function harness(extraDeps = {}, extraEnv = {}) {
   const dir = tmp();
   const out = [];
   const err = [];
   const opened = [];
-  const io = { env: { ...process.env }, out: (s) => out.push(s), err: (s) => err.push(s) };
+  const io = {
+    env: { ...process.env, ...extraEnv },
+    out: (s) => out.push(s),
+    err: (s) => err.push(s),
+  };
   const deps = {
     openBrowser: async (url) => {
       opened.push(url);
@@ -90,6 +94,61 @@ test('open prints the manual-URL hint when no browser can be opened', async () =
     assert.equal(await h.run('open', '--port', port), 0);
     assert.match(h.out[0], /^Claude Arcade is running at http:\/\/127\.0\.0\.1:\d+\/$/);
     assert.equal(h.out[1], "Couldn't open a browser automatically — open the URL above.");
+  });
+});
+
+const REMOTE = { platform: 'linux', isWsl: false, hasDisplay: false, isRemote: true };
+const HEADLESS = { platform: 'linux', isWsl: false, hasDisplay: false, isRemote: false };
+const DESKTOP = { platform: 'linux', isWsl: false, hasDisplay: true, isRemote: false };
+
+test('open over SSH with no browser prints the ssh -L command for the bound port', async () => {
+  const h = harness(
+    { openBrowser: async () => false, detectEnv: () => REMOTE },
+    { SSH_CONNECTION: '203.0.113.9 51234 10.0.0.5 22' },
+  );
+  const port = String(await freePort());
+  await withServer(h, async () => {
+    assert.equal(await h.run('open', 'snake', '--port', port), 0);
+    const bound = readLock(h.dir).port;
+    assert.equal(h.out.length, 3);
+    assert.equal(h.out[1], "Couldn't open a browser automatically — open the URL above.");
+    assert.match(
+      h.out[2],
+      new RegExp(
+        `^On your own machine run: ssh -L ${bound}:127\\.0\\.0\\.1:${bound} \\S+@10\\.0\\.0\\.5 ` +
+          `\\(adjust to how you normally connect\\), then open http://localhost:${bound}/#snake$`,
+      ),
+    );
+  });
+});
+
+test('open in a headless container with no browser prints the generic forward hint', async () => {
+  const h = harness({ openBrowser: async () => false, detectEnv: () => HEADLESS });
+  const port = String(await freePort());
+  await withServer(h, async () => {
+    assert.equal(await h.run('open', '--port', port), 0);
+    const bound = readLock(h.dir).port;
+    assert.equal(h.out.length, 3);
+    assert.match(h.out[2], new RegExp(`^This session has no browser\\. Forward port ${bound} `));
+  });
+});
+
+test('open prints no extra hint when a browser launch fails on a desktop', async () => {
+  const h = harness({ openBrowser: async () => false, detectEnv: () => DESKTOP });
+  const port = String(await freePort());
+  await withServer(h, async () => {
+    assert.equal(await h.run('open', '--port', port), 0);
+    assert.equal(h.out.length, 2);
+  });
+});
+
+test('open prints no hint when the browser opened, even over SSH', async () => {
+  const h = harness({ detectEnv: () => REMOTE }, { SSH_CONNECTION: '1.2.3.4 1 10.0.0.5 22' });
+  const port = String(await freePort());
+  await withServer(h, async () => {
+    assert.equal(await h.run('open', '--port', port), 0);
+    assert.equal(h.out.length, 1);
+    assert.equal(h.opened.length, 1);
   });
 });
 

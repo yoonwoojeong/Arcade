@@ -7,6 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-23
+
+### Added
+
+- When `/arcade:play` cannot open a browser, it now prints how to reach the arcade from your own
+  machine: the exact `ssh -L` command in an SSH session, or a port-forwarding hint in a headless
+  container or cloud session. Nothing extra is printed when a browser opened, or on a desktop where
+  only the browser launcher failed.
+- A "Remote use" section in the README.
+
 ## [0.1.0] - 2026-10-23
 
 ### Added

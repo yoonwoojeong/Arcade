@@ -6,7 +6,8 @@ import { resolveSettings } from './settings.js';
 import { findRunning, readLock, removeLock, isAlive } from './lifecycle.js';
 import { PortRangeBusyError } from './server.js';
 import { loadRegistry } from './registry.js';
-import { openBrowser } from './open-browser.js';
+import { detectEnv, openBrowser } from './open-browser.js';
+import { remoteHint } from './remote-hint.js';
 import { autoOpen } from './auto-open.js';
 
 const START_TIMEOUT_MS = 3000;
@@ -40,6 +41,7 @@ export function spawnServer(dir, env) {
 
 const realDeps = () => ({
   openBrowser,
+  detectEnv,
   spawnServer,
   findRunning,
   fetch: globalThis.fetch,
@@ -175,6 +177,8 @@ export async function main(
     io.out(`Claude Arcade is running at ${url}`);
     if (!(await deps.openBrowser(url))) {
       io.out("Couldn't open a browser automatically — open the URL above.");
+      const hint = remoteHint({ url, env: io.env, detected: deps.detectEnv(io.env) });
+      if (hint) io.out(hint);
     }
     return 0;
   }
