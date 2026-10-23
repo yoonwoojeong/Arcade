@@ -16,15 +16,25 @@ jobs:
         with:
           node-version: 22
       - name: Check tag, plugin version and changelog agree
-        run: node scripts/check-release.js ${{ github.ref_name }}
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node scripts/check-release.js "$TAG"
       - name: Extract release notes from CHANGELOG.md
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${TAG#v}"
           awk -v v="$version" '
+            /^\[[^]]+\]: / { if (found) exit }
             /^## \[/ { if (found) exit; if (index($0, "## [" v "]") == 1) { found = 1; next } }
             found { print }
           ' CHANGELOG.md > release-notes.md
+          if ! grep -q '[^[:space:]]' release-notes.md; then
+            echo "No release notes found for $version in CHANGELOG.md" >&2
+            exit 1
+          fi
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --title "$TAG" --notes-file release-notes.md --verify-tag

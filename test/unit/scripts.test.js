@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { checkRelease } from '../../scripts/check-release.js';
-import { missingSignoff } from '../../scripts/check-dco.js';
+import { missingSignoff, readCommits } from '../../scripts/check-dco.js';
 
 const pluginJson = { version: '0.1.0' };
 const changelog = '# Changelog\n\n## [0.1.0] - 2026-10-23\n\n- First release\n';
@@ -55,4 +59,53 @@ test('missingSignoff accepts a sign-off matching the author email, any name, any
 test('missingSignoff rejects a sign-off with a different email', () => {
   const commits = [commit('a1', 'feat: x\n\nSigned-off-by: Claude <other@example.com>\n')];
   assert.deepEqual(missingSignoff(commits), ['a1']);
+});
+
+test('readCommits ignores merge commits and reports unsigned regular commits', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcade-dco-'));
+  try {
+    const git = (...args) => {
+      const r = spawnSync(
+        'git',
+        [
+          '-c',
+          'user.name=T',
+          '-c',
+          'user.email=t@example.com',
+          '-c',
+          'commit.gpgsign=false',
+          ...args,
+        ],
+        { cwd: dir, encoding: 'utf8' },
+      );
+      assert.equal(r.status, 0, r.stderr);
+      return r.stdout.trim();
+    };
+    const write = (name) => fs.writeFileSync(path.join(dir, name), name);
+    git('init', '-q', '-b', 'main');
+    write('a');
+    git('add', '.');
+    git('commit', '-q', '-m', 'base');
+    git('checkout', '-q', '-b', 'feature');
+    write('b');
+    git('add', '.');
+    git('commit', '-q', '-s', '-m', 'signed');
+    git('checkout', '-q', 'main');
+    write('c');
+    git('add', '.');
+    git('commit', '-q', '-m', 'main moves on');
+    git('checkout', '-q', 'feature');
+    git('merge', '-q', '--no-ff', '-m', 'Merge main into feature', 'main');
+    write('d');
+    git('add', '.');
+    git('commit', '-q', '-m', 'unsigned');
+    const unsignedSha = git('rev-parse', 'HEAD');
+
+    const commits = readCommits('main', 'HEAD', dir);
+    assert.equal(commits.length, 2);
+    assert.ok(commits.every((c) => c.authorEmail === 't@example.com'));
+    assert.deepEqual(missingSignoff(commits), [unsignedSha]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -14,8 +14,10 @@ export function missingSignoff(commits) {
     .map(({ sha }) => sha);
 }
 
-function readCommits(base, head) {
-  const result = spawnSync('git', ['log', '--format=%H%x00%ae%x00%B%x1e', `${base}..${head}`], {
+export function readCommits(base, head, cwd = process.cwd()) {
+  const args = ['log', '--no-merges', '--format=%H%x00%ae%x00%B%x1e', `${base}..${head}`];
+  const result = spawnSync('git', args, {
+    cwd,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   });

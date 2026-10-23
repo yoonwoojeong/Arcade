@@ -8,6 +8,7 @@ permissions:
 
 jobs:
   dco:
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,4 +17,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node scripts/check-dco.js origin/${{ github.base_ref }} HEAD
+      - name: Check sign-offs on the PR's own commits
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/check-dco.js "origin/$BASE_REF" "$HEAD_SHA"
