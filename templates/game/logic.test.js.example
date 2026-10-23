@@ -1,0 +1,13 @@
+// Example unit test for logic.js. To use it, copy it to test/unit/<id>.test.js
+// and fix the import path to point at games/<id>/logic.js.
+// (This file ends in .example so the test runner ignores it inside the template.)
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createCounter, increment } from '../../games/counter/logic.js';
+
+test('increment adds one without mutating the old state', () => {
+  const a = createCounter();
+  const b = increment(a);
+  assert.equal(a.count, 0);
+  assert.equal(b.count, 1);
+});

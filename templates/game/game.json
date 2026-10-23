@@ -1,0 +1,11 @@
+{
+  "id": "counter",
+  "title": "Counter",
+  "version": "1.0.0",
+  "sdk": 1,
+  "author": "your-github-handle",
+  "description": "Template game: press primary to count up. Replace me with your pitch.",
+  "controls": { "keyboard": ["Space/Enter: add one"], "touch": "tap" },
+  "accessibility": { "screenReader": "full", "reducedMotion": true, "colorIndependent": true },
+  "sessionLength": "untimed"
+}
