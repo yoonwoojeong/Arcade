@@ -200,8 +200,12 @@ Effective value for each key, first match wins:
 
 1. `${CLAUDE_PLUGIN_DATA}/settings.json` (written by the page's settings panel)
 2. `CLAUDE_PLUGIN_OPTION_<KEY>` environment variable (from `userConfig`)
-3. Built-in default
+3. `${CLAUDE_PLUGIN_DATA}/plugin-options.json` (the valid `CLAUDE_PLUGIN_OPTION_*` values, persisted by every hook run)
+4. Built-in default
 
+Layer 3 exists because `${user_config.*}` is not substituted in skill content and the
+skill-started server does not receive `CLAUDE_PLUGIN_OPTION_*`; only hooks do, so hooks
+persist them for the server.
 Hooks and the server both use this module, so the page and the hook agree.
 Per-browser preferences (sound, notifications, theme, motion, high contrast,
 colorblind palette, key remapping) live in `localStorage` only.

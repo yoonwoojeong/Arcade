@@ -34,20 +34,29 @@ function settingsFile(dataDir) {
   return path.join(dataDir, 'settings.json');
 }
 
-function readFileSettings(dataDir) {
+function pluginOptionsFile(dataDir) {
+  return path.join(dataDir, 'plugin-options.json');
+}
+
+function readJsonObject(file) {
   try {
-    const parsed = JSON.parse(fs.readFileSync(settingsFile(dataDir), 'utf8'));
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
   }
 }
 
+function readFileSettings(dataDir) {
+  return readJsonObject(settingsFile(dataDir));
+}
+
 export function resolveSettings({ dataDir, env }) {
   const file = readFileSettings(dataDir);
+  const persisted = readJsonObject(pluginOptionsFile(dataDir));
   const out = {};
   for (const key of Object.keys(DEFAULTS)) {
-    const candidates = [file[key], env?.[ENV_KEYS[key]]];
+    const candidates = [file[key], env?.[ENV_KEYS[key]], persisted[key]];
     let resolved = DEFAULTS[key];
     for (const c of candidates) {
       if (c === undefined) continue;
@@ -87,4 +96,32 @@ export function writeSettings(dataDir, patch) {
     return { ok: false, errors: [`could not write settings: ${err.message}`] };
   }
   return { ok: true, settings };
+}
+
+// Hooks receive CLAUDE_PLUGIN_OPTION_*; skill-started servers do not. Persist the valid
+// ones so the server (and page) agree with the hooks. Never throws.
+export function writePluginOptions(dataDir, env) {
+  try {
+    const options = {};
+    for (const key of Object.keys(ENV_KEYS)) {
+      const raw = env?.[ENV_KEYS[key]];
+      if (raw === undefined) continue;
+      const r = validateSetting(key, raw);
+      if (r.ok) options[key] = r.value;
+    }
+    if (Object.keys(options).length === 0) return;
+    const file = pluginOptionsFile(dataDir);
+    const content = JSON.stringify(options, null, 2) + '\n';
+    try {
+      if (fs.readFileSync(file, 'utf8') === content) return;
+    } catch {
+      // missing or unreadable: write it
+    }
+    fs.mkdirSync(dataDir, { recursive: true });
+    const tmpFile = path.join(dataDir, `plugin-options.json.${process.pid}.${Date.now()}.tmp`);
+    fs.writeFileSync(tmpFile, content);
+    fs.renameSync(tmpFile, file);
+  } catch {
+    // best effort
+  }
 }

@@ -7,6 +7,7 @@ import {
   resolveSettings,
   validateSetting,
   writeSettings,
+  writePluginOptions,
 } from '../../server/settings.js';
 import { tmp } from '../helpers/tmp.js';
 
@@ -94,4 +95,52 @@ test('validateSetting coerces numeric strings and rejects non-integers', () => {
   assert.deepEqual(validateSetting('mode', 'quiet'), { ok: true, value: 'quiet' });
   assert.equal(validateSetting('mode', 'loud').ok, false);
   assert.equal(validateSetting('nope', 1).ok, false);
+});
+
+test('plugin-options.json is used when env is absent; env beats it; settings.json beats both', () => {
+  const dir = tmp();
+  fs.writeFileSync(
+    path.join(dir, 'plugin-options.json'),
+    JSON.stringify({ mode: 'quiet', port: 5100, autoOpenDelay: 60 }),
+  );
+  assert.deepEqual(resolveSettings({ dataDir: dir, env: {} }), {
+    mode: 'quiet',
+    port: 5100,
+    autoOpenDelay: 60,
+  });
+  assert.equal(
+    resolveSettings({ dataDir: dir, env: { CLAUDE_PLUGIN_OPTION_MODE: 'auto' } }).mode,
+    'auto',
+  );
+  writeSettings(dir, { mode: 'alert' });
+  assert.equal(
+    resolveSettings({ dataDir: dir, env: { CLAUDE_PLUGIN_OPTION_MODE: 'auto' } }).mode,
+    'alert',
+  );
+});
+
+test('invalid values in plugin-options.json fall through to defaults', () => {
+  const dir = tmp();
+  fs.writeFileSync(
+    path.join(dir, 'plugin-options.json'),
+    JSON.stringify({ mode: 'bogus', port: 1, autoOpenDelay: 'x' }),
+  );
+  assert.deepEqual(resolveSettings({ dataDir: dir, env: {} }), { ...DEFAULTS });
+});
+
+test('writePluginOptions persists only valid env values and skips unchanged content', () => {
+  const dir = tmp();
+  const file = path.join(dir, 'plugin-options.json');
+  writePluginOptions(dir, {
+    CLAUDE_PLUGIN_OPTION_MODE: 'quiet',
+    CLAUDE_PLUGIN_OPTION_PORT: '99',
+    CLAUDE_PLUGIN_OPTION_AUTOOPENDELAY: '30',
+  });
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { mode: 'quiet', autoOpenDelay: 30 });
+  const before = fs.statSync(file, { bigint: true }).ino;
+  writePluginOptions(dir, {
+    CLAUDE_PLUGIN_OPTION_MODE: 'quiet',
+    CLAUDE_PLUGIN_OPTION_AUTOOPENDELAY: '30',
+  });
+  assert.equal(fs.statSync(file, { bigint: true }).ino, before, 'not rewritten');
 });

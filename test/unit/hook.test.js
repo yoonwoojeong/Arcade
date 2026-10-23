@@ -138,3 +138,51 @@ test('hooks.json maps every event to status.js with the right state', () => {
     ]);
   }
 });
+
+test('hook persists valid plugin options for the server', () => {
+  const dir = tmp();
+  runHook(
+    'working',
+    { session_id: 's1' },
+    {
+      ARCADE_DATA_DIR: dir,
+      CLAUDE_PLUGIN_OPTION_MODE: 'quiet',
+      CLAUDE_PLUGIN_OPTION_PORT: 'nope',
+    },
+  );
+  const file = path.join(dir, 'plugin-options.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { mode: 'quiet' });
+  const ino = fs.statSync(file).ino;
+  runHook(
+    'done',
+    { session_id: 's1' },
+    { ARCADE_DATA_DIR: dir, CLAUDE_PLUGIN_OPTION_MODE: 'quiet' },
+  );
+  assert.equal(fs.statSync(file).ino, ino, 'unchanged content is not rewritten');
+});
+
+test('hook writes no plugin-options.json when options are invalid or absent', () => {
+  const dir = tmp();
+  runHook(
+    'working',
+    { session_id: 's1' },
+    { ARCADE_DATA_DIR: dir, CLAUDE_PLUGIN_OPTION_MODE: 'bogus' },
+  );
+  assert.equal(fs.existsSync(path.join(dir, 'plugin-options.json')), false);
+});
+
+test('hook still exits 0 with plugin options when the data dir is unwritable', () => {
+  const dir = tmp();
+  const blocker = path.join(dir, 'file');
+  fs.writeFileSync(blocker, 'x');
+  const r = spawnSync(process.execPath, [path.join(pluginRoot, 'hooks', 'status.js'), 'working'], {
+    input: '{}',
+    env: {
+      ...process.env,
+      ARCADE_DATA_DIR: path.join(blocker, 'sub'),
+      CLAUDE_PLUGIN_OPTION_MODE: 'quiet',
+    },
+  });
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout.length, 0);
+});
