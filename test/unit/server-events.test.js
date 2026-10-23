@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { tmp } from '../helpers/tmp.js';
 import { createArcadeServer } from '../../server/server.js';
 import {
@@ -14,7 +13,8 @@ import {
   applyEvent,
 } from '../../server/status-store.js';
 
-const serverModule = fileURLToPath(new URL('../../server/server.js', import.meta.url));
+// A file: URL, not a filesystem path: `import('C:\\...')` is rejected on Windows.
+const serverModule = new URL('../../server/server.js', import.meta.url).href;
 
 async function freePort() {
   const s = http.createServer();
@@ -285,17 +285,20 @@ test('close() leaves no timers or watchers (process can exit)', async () => {
     await srv.close();
   `;
   const child = spawn(process.execPath, ['--input-type=module', '-e', script], {
-    stdio: ['ignore', 'inherit', 'inherit'],
+    stdio: ['ignore', 'ignore', 'pipe'],
   });
+  let stderr = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (d) => (stderr += d));
   const code = await new Promise((resolve) => {
     const timer = setTimeout(() => {
       child.kill('SIGKILL');
       resolve('timeout');
     }, 2000);
-    child.on('exit', (c) => {
+    child.on('close', (c) => {
       clearTimeout(timer);
       resolve(c);
     });
   });
-  assert.equal(code, 0);
+  assert.equal(code, 0, `child exited ${code}; stderr:\n${stderr}`);
 });
