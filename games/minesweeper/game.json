@@ -1,0 +1,18 @@
+{
+  "id": "minesweeper",
+  "title": "Minesweeper",
+  "version": "1.0.0",
+  "sdk": 1,
+  "author": "yoonwoojeong",
+  "description": "Clear the 9x9 minefield without touching a mine. Fully playable with a screen reader.",
+  "controls": {
+    "keyboard": [
+      "Arrow keys: move the cursor",
+      "Enter/Space: reveal a cell, or start a new game when over",
+      "Shift or X: flag a cell"
+    ],
+    "touch": "tap to reveal, long-press to flag"
+  },
+  "accessibility": { "screenReader": "full", "reducedMotion": true, "colorIndependent": true },
+  "sessionLength": "medium"
+}
