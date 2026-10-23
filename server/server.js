@@ -89,7 +89,7 @@ export async function createArcadeServer({
   const loggedWarnings = new Set();
   let boundPort = port;
   let server;
-  const sseClients = new Set();
+  const sseClients = new Map(); // res -> last serialized status sent
   let idle = null;
   let lastBroadcast = null;
 
@@ -134,7 +134,6 @@ export async function createArcadeServer({
       'Cache-Control': 'no-store',
       Connection: 'keep-alive',
     });
-    sseClients.add(res);
     idle?.setClients(sseClients.size);
     res.on('close', () => {
       sseClients.delete(res);
@@ -142,7 +141,8 @@ export async function createArcadeServer({
     });
     res.on('error', () => {});
     const current = JSON.stringify(readStatus(dataDir));
-    lastBroadcast = current;
+    sseClients.set(res, current);
+    idle?.setClients(sseClients.size);
     res.write(statusFrame(current));
   };
 
@@ -266,7 +266,11 @@ export async function createArcadeServer({
     if (serialized === lastBroadcast) return;
     lastBroadcast = serialized;
     const frame = statusFrame(serialized);
-    for (const res of sseClients) res.write(frame);
+    for (const [res, last] of sseClients) {
+      if (last === serialized) continue;
+      sseClients.set(res, serialized);
+      res.write(frame);
+    }
     idle?.activity();
   };
 
@@ -306,13 +310,21 @@ export async function createArcadeServer({
         scheduleBroadcast();
       }
     });
-    watcher.on('error', () => {});
+    watcher.on('error', () => {
+      logWarnings(['fs.watch failed; falling back to polling']);
+      try {
+        watcher?.close();
+      } catch {
+        // already closed
+      }
+    });
   } catch {
     watcher = null; // unsupported: polling alone covers it
+    logWarnings(['fs.watch unavailable; falling back to polling']);
   }
 
   const heartbeatTimer = setInterval(() => {
-    for (const res of sseClients) res.write(': ping\n\n');
+    for (const res of sseClients.keys()) res.write(': ping\n\n');
   }, HEARTBEAT_MS);
 
   let closing = null;
@@ -330,7 +342,7 @@ export async function createArcadeServer({
           // already closed
         }
         server.close(() => resolve());
-        for (const res of sseClients) res.end();
+        for (const res of sseClients.keys()) res.end();
         sseClients.clear();
         server.closeAllConnections?.();
       });

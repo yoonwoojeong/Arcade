@@ -192,6 +192,29 @@ test('identical rewrites do not produce duplicate events', async () => {
   await srv.close();
 });
 
+test('a client connecting inside the debounce window does not suppress the change for others', async () => {
+  const { srv, dataDir } = await start();
+  const a = openEvents(srv.port);
+  await a.ready;
+  await a.nth(1);
+  const next = applyEvent(emptyStatus(), {
+    state: 'idle',
+    sessionId: 's3',
+    cwd: '/q/r',
+    now: new Date(),
+  });
+  writeStatusAtomic(dataDir, next);
+  const b = openEvents(srv.port);
+  await b.ready;
+  assert.deepEqual((await b.nth(1)).data, next);
+  assert.deepEqual((await a.nth(2, 1500)).data, next);
+  await sleep(200);
+  assert.equal(b.events.length, 1);
+  a.close();
+  b.close();
+  await srv.close();
+});
+
 test('clientCount and /health.clients track open connections', async () => {
   const { srv } = await start();
   assert.equal(srv.clientCount(), 0);
@@ -249,7 +272,7 @@ test('close() leaves no timers or watchers (process can exit)', async () => {
   const rootDir = tmp();
   const script = `
     import { createArcadeServer } from ${JSON.stringify(serverModule)};
-    const srv = await createArcadeServer({ rootDir: ${JSON.stringify(rootDir)}, dataDir: ${JSON.stringify(path.join(dataDir, 'nested'))}, port: 47000 + Math.floor(Math.random() * 900), token: 't', env: {} });
+    const srv = await createArcadeServer({ rootDir: ${JSON.stringify(rootDir)}, dataDir: ${JSON.stringify(path.join(dataDir, 'nested'))}, port: ${await freePort()}, token: 't', env: {} });
     await new Promise((resolve) => {
       import('node:http').then(({ default: http }) => {
         const r = http.get({ host: '127.0.0.1', port: srv.port, path: '/events', headers: { Host: '127.0.0.1:' + srv.port } }, (res) => {
