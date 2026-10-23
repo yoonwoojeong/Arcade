@@ -77,7 +77,9 @@ export default function createGame(ctx) {
 }
 ```
 
-`Esc` leaves the game: the shell calls `pause()`, then `destroy()`, and returns to the menu with
+`Esc` pauses the game (the shell calls `pause()`) and moves focus to the shell's paused panel, which
+offers Resume game (`resume()`) and Back to menu. `P` toggles pause, and the shell also pauses when the
+tab is hidden or the window loses focus. Back to menu calls `destroy()` and returns to the menu with
 focus on the game's card, so unsaved game state is lost (use `ctx.storage` for anything worth keeping).
 If any lifecycle call throws, the shell destroys the
 game, shows "This game crashed — back to menu", and the arcade carries on.
@@ -120,6 +122,11 @@ the rest.
 - **Relative imports only**, and only inside your own game folder.
 - **Input only through `ctx.input`**, so remapping and touch work for every game. Clicking elements your
   game created inside `ctx.root` is allowed, as long as `destroy()` removes those listeners.
+- **Buttons and fields keep their own keys.** When focus is on a button, link, form field or editable
+  element inside `ctx.root`, `ctx.input` leaves the keys to the browser, so Enter and Space click your
+  "New game" button. Give an element the `data-game-keys` attribute when its keys should still go to
+  `ctx.input` (Minesweeper's cells are buttons that do this). Keys with Ctrl, Alt or Meta are never
+  mapped, and Shift fires `secondary` only when it is tapped on its own, so Shift+Tab stays navigation.
 - **The shell controls pausing.** `pause()` must stop your loop and timers.
 - **`destroy()` releases everything:** timers, animation frames, listeners, and every `ctx.input.on`
   needs a matching `ctx.input.off`.

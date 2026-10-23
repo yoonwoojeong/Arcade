@@ -1,7 +1,7 @@
 // Claude Arcade shell: wires the menu, game host, status stream, banner and settings.
 import { summarize } from './status-summary.js';
 import { reactionFor } from './modes.js';
-import { createInput } from './input.js';
+import { createInput, actionForKey } from './input.js';
 import { createPrefs } from './prefs.js';
 import { createContext } from './sdk.js';
 import { createGameHost, resolveGameId } from './game-host.js';
@@ -50,6 +50,7 @@ let dismissedKey = null;
 let current = null; // { id, root, input } of the mounted game
 let mountToken = 0;
 let pausedBySettings = false;
+let settingsPanel = null;
 
 const announce = createAnnouncer({ polite: els.polite, assertive: els.assertive });
 
@@ -158,6 +159,7 @@ async function openGame(id) {
   root.setAttribute('aria-label', game.title);
   els.stage.append(root);
   const input = createInput(root);
+  input.on('pause', () => pauseGame());
   current = { id, root, input };
   const ctx = createContext({
     gameId: id,
@@ -195,6 +197,25 @@ function resumeGame() {
   banner.hide();
   sync();
   if (host.state === 'running') current?.root.focus();
+}
+
+// Pause a running game and put focus on its Resume control (the banner's, when one is shown).
+function pauseGame() {
+  host.pause();
+  sync();
+  if (host.state !== 'paused') return;
+  if (banner.visible) banner.focus();
+  else $('paused-resume').focus();
+}
+
+// Leaving the tab or window pauses; resuming stays a deliberate choice.
+function pauseWhileAway() {
+  if (host.state !== 'running') return;
+  host.pause();
+  sync();
+  if (host.state === 'paused' && current?.root.contains(document.activeElement)) {
+    $('paused-resume').focus();
+  }
 }
 
 const banner = createBanner({
@@ -254,7 +275,8 @@ function connect() {
     } catch {
       return;
     }
-    render();
+    // the mode may have changed with /plugin (plugin-options.json): react with the current one
+    refreshSettings().then(render);
   });
   es.onerror = () => {
     lastStatus = null;
@@ -264,10 +286,44 @@ function connect() {
   };
 }
 
+let saveSeq = 0; // bumped when a save starts and ends, so a GET that overlaps one is ignored
+let settingsFetch = null;
+let settingsFetchAgain = false;
+
 async function saveSettings(patch) {
-  const result = await postSettings(patch);
-  if (result.ok) settings = result.settings;
-  return result;
+  saveSeq++;
+  try {
+    const result = await postSettings(patch);
+    if (result.ok) settings = result.settings;
+    return result;
+  } finally {
+    saveSeq++;
+  }
+}
+
+// Re-read server settings; concurrent calls share one request (plus one more if asked meanwhile).
+function refreshSettings() {
+  if (settingsFetch) {
+    settingsFetchAgain = true;
+    return settingsFetch;
+  }
+  settingsFetch = (async () => {
+    do {
+      settingsFetchAgain = false;
+      const seq = saveSeq;
+      try {
+        const fresh = await getJson('/api/settings');
+        if (seq === saveSeq && saveSeq % 2 === 0 && fresh && typeof fresh === 'object') {
+          settings = fresh;
+          settingsPanel?.refresh();
+        }
+      } catch {
+        // offline: keep the last known settings
+      }
+    } while (settingsFetchAgain);
+    settingsFetch = null;
+  })();
+  return settingsFetch;
 }
 
 // ---- startup ----
@@ -281,7 +337,7 @@ window
   .matchMedia('(prefers-reduced-motion: reduce)')
   .addEventListener('change', () => applyPrefs(document.documentElement, prefs.get()));
 
-createSettingsPanel({
+settingsPanel = createSettingsPanel({
   dialog: $('settings'),
   opener: $('settings-button'),
   prefs,
@@ -305,14 +361,34 @@ createSettingsPanel({
 
 $('back-button').addEventListener('click', () => leaveGame());
 $('paused-resume').addEventListener('click', resumeGame);
+$('paused-menu').addEventListener('click', () => leaveGame());
 
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || $('settings').open) return;
-  if (current || !els.stage.hidden) {
+  if ($('settings').open || e.defaultPrevented) return;
+  if (e.key === 'Escape') {
+    if (current) {
+      // Esc pauses; "Back to menu" on the paused panel leaves
+      e.preventDefault();
+      pauseGame();
+    } else if (!els.stage.hidden) {
+      e.preventDefault();
+      leaveGame(); // nothing mounted yet (still loading)
+    }
+    return;
+  }
+  // P while paused resumes (while running, ctx.input's pause action pauses)
+  const modified = e.ctrlKey || e.metaKey || e.altKey || e.shiftKey;
+  if (!modified && host.state === 'paused' && actionForKey(e.code) === 'pause') {
     e.preventDefault();
-    leaveGame();
+    resumeGame();
   }
 });
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) pauseWhileAway();
+  else refreshSettings();
+});
+window.addEventListener('blur', pauseWhileAway);
 
 window.addEventListener('hashchange', route);
 

@@ -206,7 +206,10 @@ Effective value for each key, first match wins:
 
 Layer 3 exists because `${user_config.*}` is not substituted in skill content and the
 skill-started server does not receive `CLAUDE_PLUGIN_OPTION_*`; only hooks do, so hooks
-persist them for the server.
+persist them for the server. `cli.js` strips inherited `CLAUDE_PLUGIN_OPTION_*` from the
+environment of the server it spawns (hook- and skill-started servers alike), so a long-lived
+server never holds stale values; it reads layer 3 on every request. The page re-fetches
+`/api/settings` on each SSE status event and when its tab becomes visible.
 Hooks and the server both use this module, so the page and the hook agree.
 Per-browser preferences (sound, notifications, theme, motion, high contrast,
 colorblind palette, key remapping) live in `localStorage` only.
@@ -218,7 +221,7 @@ colorblind palette, key remapping) live in `localStorage` only.
 - **Status badge:** always visible; shows the most urgent state across sessions (`needs-you` > `done` > `working` > idle), e.g. "Claude is working…", "my-repo needs you", "2 sessions finished". Shows "offline" if SSE is disconnected; reconnects automatically.
 - **Banner:** see §5.3.
 - **Settings panel:** mode, auto-open delay, sound, browser notifications (requested only when the user enables them), theme, reduced motion, high contrast, colorblind palette, show project name.
-- **Game host:** mounts one game at a time; wraps every lifecycle call in try/catch. On error: destroy, show "This game crashed — back to menu", log to console. `Esc` always pauses and returns focus to the shell.
+- **Game host:** mounts one game at a time; wraps every lifecycle call in try/catch. On error: destroy, show "This game crashed — back to menu", log to console. `Esc` always pauses and returns focus to the shell: it moves focus to the paused panel (Resume game / Back to menu); "Back to menu" leaves (destroys) the game. The `pause` action (P) toggles pause. Hiding the tab or leaving the window pauses a running game; resuming stays manual.
 
 ## 5. Behavior
 

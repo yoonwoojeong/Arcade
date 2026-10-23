@@ -75,6 +75,7 @@ export default function createGame(ctx) {
       b.setAttribute('aria-colindex', String(c + 1));
       b.dataset.r = String(r);
       b.dataset.c = String(c);
+      b.dataset.gameKeys = ''; // cells send their keys to ctx.input (arrows, Enter, Shift/X)
       b.style.cssText =
         'width:2.25rem;height:2.25rem;padding:0;border:2px solid var(--border);border-radius:4px;font:inherit;font-weight:700;cursor:pointer;';
       row.push(b);

@@ -368,6 +368,7 @@ main {
 
 .paused-panel {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 1rem;
   margin-bottom: 1rem;
@@ -383,6 +384,7 @@ main {
 
 .game-root {
   min-height: 20rem;
+  touch-action: none; /* swipes are game input, not page scroll or zoom */
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);

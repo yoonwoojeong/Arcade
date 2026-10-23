@@ -147,5 +147,15 @@ export function createSettingsPanel({
     get open() {
       return dialog.open;
     },
+    // Show server settings that changed elsewhere (e.g. /plugin) without touching an edit
+    // in progress in the delay field.
+    refresh() {
+      if (!dialog.open) return;
+      const s = getSettings();
+      for (const r of modeRadios) r.checked = r.value === s.mode;
+      if (document.activeElement !== delay && delay.getAttribute('aria-invalid') !== 'true') {
+        delay.value = String(s.autoOpenDelay);
+      }
+    },
   };
 }

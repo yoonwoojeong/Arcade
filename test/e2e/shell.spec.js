@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { test, expect } from './fixtures.js';
 
 const badge = (page) => page.locator('#status-badge');
@@ -130,6 +132,29 @@ test('needs-you shows the banner in alert mode and not in quiet mode', async ({
   await setStatus({ s1: { state: 'needs-you', project: 'demo' } });
   await expect(badge(page)).toHaveText('demo needs you');
   await expect(banner(page)).toBeHidden();
+});
+
+test('a /plugin mode change (plugin-options.json) applies on the next status event', async ({
+  page,
+  baseURL,
+  setStatus,
+  dataDir,
+}) => {
+  await page.goto(baseURL);
+  await expect(badge(page)).toHaveText('Claude is idle');
+  // the page loaded with the default mode (alert); a hook then persists mode quiet
+  fs.writeFileSync(path.join(dataDir, 'plugin-options.json'), JSON.stringify({ mode: 'quiet' }));
+  await setStatus({ s1: { state: 'needs-you', project: 'demo' } });
+  await expect(badge(page)).toHaveText('demo needs you');
+  await expect(banner(page)).toBeHidden();
+
+  // the open Settings panel follows too
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.locator('#settings').getByLabel('Quiet', { exact: true })).toBeChecked();
+  fs.writeFileSync(path.join(dataDir, 'plugin-options.json'), JSON.stringify({ mode: 'auto' }));
+  await setStatus({ s1: { state: 'working', project: 'demo' } });
+  await expect(badge(page)).toHaveText('Claude is working…');
+  await expect(page.locator('#settings').getByLabel('Auto', { exact: true })).toBeChecked();
 });
 
 test('dismissed banner stays hidden until state changes', async ({ page, baseURL, setStatus }) => {

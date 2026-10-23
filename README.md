@@ -62,8 +62,11 @@ in the page's Settings panel. The Settings panel also has sound, browser notific
 motion, high contrast, a colourblind palette and a "show project name" switch.
 
 - The Settings panel applies immediately and wins over `/plugin` options.
-- Changes made with `/plugin` reach the arcade server after the next prompt you send, because the hooks
-  pass them along. (Verified with Claude Code 2.1.309.)
+- Changes made with `/plugin` reach the arcade after Claude's next hook event (your next prompt, or its
+  next tool call), because the hooks save them to `plugin-options.json`. (Hooks receiving `/plugin`
+  options was verified with Claude Code 2.1.309.) An open page picks up a new mode or delay on the next
+  status change, or when you switch back to its tab. A new `port` applies the next time the server
+  starts (`/arcade:stop`, then `/arcade:play`).
 - Sound is off by default, and browser notifications are requested only when you turn them on.
 
 ## Accessibility
@@ -72,6 +75,7 @@ Claude Arcade aims for WCAG 2.2 AA in the shell: full keyboard operation, visibl
 controls, live-region announcements, `prefers-reduced-motion` and `prefers-color-scheme` support (both
 overridable), a high-contrast theme, a colourblind-safe palette, no information by colour alone, and
 nothing that flashes more than 3 times per second. The test suite runs an axe-core scan of the shell.
+In a game, `Esc` pauses and moves focus to Resume game / Back to menu, and `P` toggles pause.
 
 Each game declares how well it works with a screen reader, and the menu shows it:
 
@@ -107,8 +111,9 @@ plugin in /plugin.` (with your range). Change the `port` option with `/plugin` a
   `http://127.0.0.1:4417`. Open it in a browser on the same machine, or forward the port over SSH.
 - **The game did not pause when Claude finished.** Make sure the tab is open and the badge is not
   showing `Offline — reconnecting…`. In `quiet` mode only the badge changes.
-- **Changed a `/plugin` option and nothing happened.** It takes effect after your next prompt. Use the
-  Settings panel for an immediate change.
+- **Changed a `/plugin` option and nothing happened.** It takes effect after your next prompt (a new
+  `port` after `/arcade:stop` and `/arcade:play`). A mode or delay chosen in the Settings panel wins
+  over `/plugin`, so change it there instead; that also applies immediately.
 - **Still stuck?** Look at `arcade.log` in the data directory (see Privacy above, `${CLAUDE_PLUGIN_DATA}/arcade.log`, e.g. under `~/.claude/plugins/data/`). It holds server and hook errors. Hook errors never
   affect Claude. Include an excerpt when you file a bug.
 

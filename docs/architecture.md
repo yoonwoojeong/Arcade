@@ -30,7 +30,8 @@ browser tab (web/shell.js) ◀──SSE /events (15 s heartbeat)── server/se
    a JSON API, and a Server-Sent Events stream that sends the full status on connect and on every change.
    It shuts itself down after 30 minutes with no clients and no changes.
 3. **Shell.** The page subscribes to `/events`, shows the status badge, reacts to the mode (pause the
-   game and show a banner on `needs-you` or `done`), and hosts games.
+   game and show a banner on `needs-you` or `done`), and hosts games. `Esc` pauses into a paused panel
+   (Resume game / Back to menu), `P` toggles pause, and hiding the tab or leaving the window pauses.
 4. **Games** receive a `ctx` from `web/sdk.js` and never touch the shell directly.
 
 ## Status shape
@@ -54,9 +55,11 @@ browser tab (web/shell.js) ◀──SSE /events (15 s heartbeat)── server/se
 For each setting, the first match wins:
 
 1. `settings.json` in the data directory (written by the page's Settings panel)
-2. `CLAUDE_PLUGIN_OPTION_<KEY>` environment variable
+2. `CLAUDE_PLUGIN_OPTION_<KEY>` environment variable (hooks see these; the CLI does not pass inherited
+   ones to the server it starts, only explicit `--mode`, `--port` and `--auto-open-delay` flags)
 3. `plugin-options.json` in the data directory (the `/plugin` options, persisted by every hook run, so
-   a `/plugin` change reaches the server after your next prompt)
+   a `/plugin` change reaches the server after the next hook event; the page re-reads
+   `/api/settings` on every status change and when its tab becomes visible)
 4. Built-in default
 
 Per-browser preferences (sound, notifications, theme, motion, contrast, palette) live in `localStorage`.
