@@ -1,6 +1,6 @@
 ---
 description: Open Claude Arcade in your browser and play a mini-game while Claude works.
-argument-hint: '[game-id]'
+argument-hint: "[game-id]"
 disable-model-invocation: true
 allowed-tools: Bash(node:*)
 ---
