@@ -5,6 +5,8 @@ import crypto from 'node:crypto';
 import { resolveSettings, writeSettings } from './settings.js';
 import { loadRegistry } from './registry.js';
 import { pluginRoot } from './paths.js';
+import { readStatus, STATUS_FILE } from './status-store.js';
+import { createIdleTimer } from './lifecycle.js';
 import {
   isAllowedHost,
   isAllowedOrigin,
@@ -15,6 +17,9 @@ import {
 
 const MAX_BODY_BYTES = 4096;
 const PORT_SPAN = 9;
+const HEARTBEAT_MS = 15_000;
+const POLL_MS = 1000;
+const DEBOUNCE_MS = 50;
 
 export class PortRangeBusyError extends Error {
   constructor(from, to) {
@@ -75,8 +80,6 @@ export async function createArcadeServer({
   port,
   token,
   env = process.env,
-  // idleTimeoutMs is accepted for the Task 8 idle timer; not used yet.
-  // eslint-disable-next-line no-unused-vars
   idleTimeoutMs = 1_800_000,
   onShutdown = () => {},
 }) {
@@ -86,6 +89,9 @@ export async function createArcadeServer({
   const loggedWarnings = new Set();
   let boundPort = port;
   let server;
+  const sseClients = new Set();
+  let idle = null;
+  let lastBroadcast = null;
 
   const logWarnings = (warnings) => {
     const fresh = warnings.filter((w) => !loggedWarnings.has(w));
@@ -119,8 +125,30 @@ export async function createArcadeServer({
     return send(res, 200, data, { 'Content-Type': contentType(file) });
   };
 
-  // Exact-path routes: path -> { METHOD: handler(req, res) }. Task 8 adds /events here.
+  const statusFrame = (serialized) => `event: status\ndata: ${serialized}\n\n`;
+
+  const handleEvents = (req, res) => {
+    res.writeHead(200, {
+      ...SECURITY_HEADERS,
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-store',
+      Connection: 'keep-alive',
+    });
+    sseClients.add(res);
+    idle?.setClients(sseClients.size);
+    res.on('close', () => {
+      sseClients.delete(res);
+      idle?.setClients(sseClients.size);
+    });
+    res.on('error', () => {});
+    const current = JSON.stringify(readStatus(dataDir));
+    lastBroadcast = current;
+    res.write(statusFrame(current));
+  };
+
+  // Exact-path routes: path -> { METHOD: handler(req, res) }.
   const routes = {
+    '/events': { GET: handleEvents },
     '/': { GET: (req, res) => serveFile(res, webDir, '/index.html') },
     '/api/games': {
       GET: (req, res) => {
@@ -177,7 +205,7 @@ export async function createArcadeServer({
           version,
           pid: process.pid,
           rootDir,
-          clients: 0,
+          clients: sseClients.size,
         }),
     },
   };
@@ -233,16 +261,89 @@ export async function createArcadeServer({
   }
   if (!server) throw new PortRangeBusyError(port, port + PORT_SPAN);
 
+  const broadcastIfChanged = () => {
+    const serialized = JSON.stringify(readStatus(dataDir));
+    if (serialized === lastBroadcast) return;
+    lastBroadcast = serialized;
+    const frame = statusFrame(serialized);
+    for (const res of sseClients) res.write(frame);
+    idle?.activity();
+  };
+
+  lastBroadcast = JSON.stringify(readStatus(dataDir));
+
+  let debounceTimer = null;
+  const scheduleBroadcast = () => {
+    if (debounceTimer) return;
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      broadcastIfChanged();
+    }, DEBOUNCE_MS);
+  };
+
+  const statusPath = path.join(dataDir, STATUS_FILE);
+  const signature = () => {
+    try {
+      const st = fs.statSync(statusPath);
+      return `${st.mtimeMs}:${st.size}`;
+    } catch {
+      return 'missing';
+    }
+  };
+  let lastSignature = signature();
+  const pollTimer = setInterval(() => {
+    const sig = signature();
+    if (sig === lastSignature) return;
+    lastSignature = sig;
+    scheduleBroadcast();
+  }, POLL_MS);
+
+  let watcher = null;
+  try {
+    fs.mkdirSync(dataDir, { recursive: true });
+    watcher = fs.watch(dataDir, (eventType, filename) => {
+      if (filename === null || filename === undefined || String(filename) === STATUS_FILE) {
+        scheduleBroadcast();
+      }
+    });
+    watcher.on('error', () => {});
+  } catch {
+    watcher = null; // unsupported: polling alone covers it
+  }
+
+  const heartbeatTimer = setInterval(() => {
+    for (const res of sseClients) res.write(': ping\n\n');
+  }, HEARTBEAT_MS);
+
   let closing = null;
   function close() {
     if (!closing) {
       closing = new Promise((resolve) => {
+        idle?.stop();
+        clearInterval(pollTimer);
+        clearInterval(heartbeatTimer);
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = null;
+        try {
+          watcher?.close();
+        } catch {
+          // already closed
+        }
         server.close(() => resolve());
+        for (const res of sseClients) res.end();
+        sseClients.clear();
         server.closeAllConnections?.();
       });
     }
     return closing;
   }
 
-  return { port: boundPort, close, clientCount: () => 0 };
+  idle = createIdleTimer({
+    timeoutMs: idleTimeoutMs,
+    onIdle: () => {
+      close().finally(() => onShutdown());
+    },
+  });
+
+  return { port: boundPort, close, clientCount: () => sseClients.size };
 }
